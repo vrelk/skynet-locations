@@ -81,6 +81,9 @@
           "value": "${sourceDir}/cmake/ports/"
         },
         "VCPKG_TARGET_TRIPLET": "x64-windows-static-md"
+      },
+      "environment": {
+        "VCPKG_ROOT": "R:\\SKSE-DEV\\vcpkg"
       }
     },
     {

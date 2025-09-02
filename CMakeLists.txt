@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.25)
 
 project(
-        Template
+        VrelkHttpClient
         VERSION 0.0.1
         LANGUAGES CXX)
 set(PROJECT_LICENSE "MIT")
@@ -27,6 +27,9 @@ if(Boost_FOUND)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${Boost_LIBRARIES})
     target_include_directories(${PROJECT_NAME} PRIVATE ${Boost_INCLUDE_DIRS})
 endif()
+
+find_package(cpr CONFIG REQUIRED)
+target_link_libraries(VrelkHttpClient PRIVATE cpr::cpr)
 
 # find_library(DETOURS_LIBRARY detours REQUIRED)
 # target_include_directories(${PROJECT_NAME} PRIVATE ${DETOURS_INCLUDE_DIRS})

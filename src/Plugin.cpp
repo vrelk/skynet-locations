@@ -3,7 +3,11 @@ using namespace SKSE::log;
 using namespace SKSE::stl;
 
 #include "Plugin.h"
-#include "GameEventHandler.h"
+//#include "GameEventHandler.h"
+
+//#include "src/Settings.hpp"
+//#include "src/Scripting.hpp"
+#include "HTTPClient.h"
 
 namespace plugin {
     std::optional<std::filesystem::path> getLogDirectory() {
@@ -49,7 +53,26 @@ namespace plugin {
         spdlog::set_default_logger(std::move(log));
         spdlog::set_pattern(PLUGIN_LOGPATTERN_DEFAULT);
     }
+
+    // Function to bind Papyrus functions
+    bool BindPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
+        vm->RegisterFunction("httpPostAsync", "VrelkHttpClient", PapyrusHttpPost);
+        return true;
+    }
 }  // namespace plugin
+
+std::string getJContainersPluginName() {
+    auto patchVersion = REL::Module::get().version().patch();
+
+    std::string pluginName{"JContainers64"};
+    if (REL::Module::IsVR()) {
+        pluginName = "JContainersVR";
+    } else if (patchVersion == 659 || patchVersion == 1179) {
+        pluginName = "JContainersGOG";
+    }
+
+    return pluginName;
+}
 
 using namespace plugin;
 
@@ -59,7 +82,18 @@ extern "C" DLLEXPORT bool SKSEPlugin_Load(const LoadInterface* skse) {
     logger::info("'{} {}' is loading, game version '{}'...", Plugin::Name, Plugin::VersionString, REL::Module::get().version().string());
     Init(skse);
 
-    GameEventHandler::getInstance().onLoad();
+    // Get the Papyrus interface from SKSE.
+    auto papyrus = SKSE::GetPapyrusInterface();
+    if (!papyrus) {
+        return false;
+    }
+
+    // Register our Papyrus functions.
+    if (!papyrus->Register(BindPapyrusFunctions)) {
+        return false;
+    }
+
+    //GameEventHandler::getInstance().onLoad();
     logger::info("{} has finished loading.", Plugin::Name);
     return true;
 }
