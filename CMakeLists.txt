@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
         VrelkHttpClient
-        VERSION 0.0.1
+        VERSION 0.0.2
         LANGUAGES CXX)
 set(PROJECT_LICENSE "MIT")
 set(PROJECT_FRIENDLY_NAME ${PROJECT_NAME})
@@ -30,6 +30,11 @@ endif()
 
 find_package(cpr CONFIG REQUIRED)
 target_link_libraries(VrelkHttpClient PRIVATE cpr::cpr)
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE 
+    USER_AGENT_NAME="${PROJECT_NAME}" 
+    USER_AGENT_VERSION="${PROJECT_VERSION}"
+)
 
 # find_library(DETOURS_LIBRARY detours REQUIRED)
 # target_include_directories(${PROJECT_NAME} PRIVATE ${DETOURS_INCLUDE_DIRS})

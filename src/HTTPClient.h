@@ -5,6 +5,9 @@
 #include "RE/Skyrim.h"
 
 namespace plugin {
-    void PapyrusHttpPost(RE::StaticFunctionTag *, const std::string url, const std::string payload, const bool logResponse = false);
-    void HttpPostAsync(const std::string url, const std::string payload, const bool logResponse = false);
+    int PapyrusHttpGet(RE::StaticFunctionTag*, const std::string url);
+    int HttpGet(const std::string& url, std::string& responseBody);
+
+    void PapyrusHttpPost(RE::StaticFunctionTag*, const std::string url, const std::string payload, const bool logResponse = false);
+    void HttpPostAsync(const std::string& url, const std::string& payload, const bool logResponse = false);
 }  // namespace plugin

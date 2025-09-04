@@ -56,6 +56,7 @@ namespace plugin {
 
     // Function to bind Papyrus functions
     bool BindPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
+        vm->RegisterFunction("httpGetAsync", "VrelkHttpClient", PapyrusHttpGet);
         vm->RegisterFunction("httpPostAsync", "VrelkHttpClient", PapyrusHttpPost);
         return true;
     }
