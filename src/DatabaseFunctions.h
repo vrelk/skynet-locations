@@ -1,14 +1,16 @@
-#ifndef DATABASEFUNCTIONS_H
-#define DATABASEFUNCTIONS_H
+#pragma once
 
 #include <string>
 
 namespace plugin {
     extern const std::string DATABASE_PATH;
+    extern const std::string IMPORT_FOLDER_PATH;
 
     void InitializeDatabase();
     std::string SelectValue(const std::string& key);
-    void InsertValueIfNotExists(const std::string& key, const std::string& value);
+    RE::BSFixedString GetQuestDescription(RE::StaticFunctionTag*, std::string quest_eid);
+    RE::BSFixedString GetStageDescription(RE::StaticFunctionTag*, std::string quest_eid, int stage);
+    RE::BSFixedString GetObjectiveDescription(RE::StaticFunctionTag*, std::string quest_eid, int objective);
+    std::future<void> ImportDataFromFileAsync(const std::string& filename);
+    std::future<void> ImportDataFromFolderAsync(const std::string& folderPath);
 }  // namespace plugin
-
-#endif  // DATABASEFUNCTIONS_H

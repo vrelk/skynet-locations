@@ -5,15 +5,15 @@
 #include "jcontainers.hpp"  // Include JContainers
 
 namespace plugin {
-    int PapyrusHttpGet(RE::StaticFunctionTag*, const std::string url) {
+    int32_t PapyrusHttpGet(RE::StaticFunctionTag*, const std::string url) {
         std::string responseBody;
         int statusCode = plugin::HttpGet(url, responseBody);
 
         // Create a JMap object
-        int jmapObj = jcontainers::JMap::object();
+        int32_t jmapObj = jcontainers::JMap::object();
         if (jmapObj == 0) {
-            logger::error("Failed to create JMap object for HTTP GET response.");
-            return 0;  // Return 0 to indicate failure
+            logger::error("Failed to create JMap object for HTTP GET response. {}", jmapObj);
+            //return 0;  // Return 0 to indicate failure
         }
         // Store the response code and body in the JMap
         jcontainers::JMap::setInt(jmapObj, "status", statusCode);

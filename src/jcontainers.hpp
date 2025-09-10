@@ -7,9 +7,9 @@ namespace {
     void get_class_function(const jc::reflection_interface* refl, const char* a_funcName, const char* a_className, F& a_func) {
         a_func = reinterpret_cast<F>(refl->tes_function_of_class(a_funcName, a_className));
         if (!a_func) {
-            //logger::error("slavetats_ng: couldn't obtain function {}::{}", a_className, a_funcName);
+            logger::error("jcontainers: couldn't obtain function {}::{}", a_className, a_funcName);
         } else {
-            //logger::info("slavetats_ng: found function {}::{}", a_className, a_funcName);
+            logger::info("jcontainers: found function {}::{}", a_className, a_funcName);
         }
     }
 }  // namespace

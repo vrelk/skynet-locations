@@ -23,6 +23,8 @@ namespace plugin {
     void GameEventHandler::onDataLoaded() {
         logger::info("onDataLoaded()");
         InitializeDatabase();
+        auto jsonImport = ImportDataFromFolderAsync(IMPORT_FOLDER_PATH);
+        jsonImport.get();  // Wait for the operation to complete
     }
 
     void GameEventHandler::onNewGame() {
