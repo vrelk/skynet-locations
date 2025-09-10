@@ -3,11 +3,13 @@ using namespace SKSE::log;
 using namespace SKSE::stl;
 
 #include "Plugin.h"
-//#include "GameEventHandler.h"
+#include "GameEventHandler.h"
 
 //#include "src/Settings.hpp"
 //#include "src/Scripting.hpp"
+#include "DatabaseFunctions.h"
 #include "HTTPClient.h"
+#include "VrelkUtil.h"
 
 namespace plugin {
     std::optional<std::filesystem::path> getLogDirectory() {
@@ -58,6 +60,12 @@ namespace plugin {
     bool BindPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
         vm->RegisterFunction("httpGetAsync", "VrelkHttpClient", PapyrusHttpGet);
         vm->RegisterFunction("httpPostAsync", "VrelkHttpClient", PapyrusHttpPost);
+        //vm->RegisterFunction("floatToInt", "VrelkHttpClient", FloatToInt);
+        //vm->RegisterFunction("isPlayer", "VrelkHttpClient", IsPlayer);
+        //vm->RegisterFunction("getActorName", "VrelkHttpClient", GetActorName);
+        //vm->RegisterFunction("jsonEncStrArr", "VrelkHttpClient", PapyrusJsonEncStrArr);
+        vm->RegisterFunction("jsonEncJArray", "VrelkHttpClient", PapyrusJsonEncJArray);
+        vm->RegisterFunction("jsonEncJMap", "VrelkHttpClient", PapyrusJsonEncJMap);
         return true;
     }
 }  // namespace plugin
@@ -94,7 +102,7 @@ extern "C" DLLEXPORT bool SKSEPlugin_Load(const LoadInterface* skse) {
         return false;
     }
 
-    //GameEventHandler::getInstance().onLoad();
+    GameEventHandler::getInstance().onLoad();
     logger::info("{} has finished loading.", Plugin::Name);
     return true;
 }

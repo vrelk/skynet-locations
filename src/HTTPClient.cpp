@@ -26,18 +26,25 @@ namespace plugin {
         HttpPostAsync(url, payload, logResponse);
     }
 
+    /*
+     * Performs an HTTP GET request to the specified URL and returns the status code.
+     * The response body is returned via the responseBody reference parameter.
+     * Returns -1 in case of an error.
+    */
     int HttpGet(const std::string& url, std::string& responseBody) {
         try {
-            // Construct the User-Agent string
             std::string userAgent = std::string(USER_AGENT_NAME) + "/" + std::string(USER_AGENT_VERSION);
+            auto start = std::chrono::high_resolution_clock::now();
 
-            auto start = std::chrono::high_resolution_clock::now();  // Start timing
+            auto response = cpr::Get(cpr::Url{url}, cpr::Header{{"User-Agent", userAgent}}, cpr::Timeout{5000},
+                                     cpr::VerifySsl{false});  // Increased timeout
 
-            // Perform the GET request
-            auto response = cpr::Get(cpr::Url{url}, cpr::Header{{"User-Agent", userAgent}},
-                                     cpr::Timeout{2000});  // Timeout set to 2000 milliseconds (2 seconds)
+            if (response.status_code == 0) {
+                logger::error("HTTP GET to '{}' failed with error: {} (code: {})", url, response.error.message,
+                              static_cast<int>(response.error.code));
+                return -1;  // Return -1 to indicate an error
+            }
 
-            // Trim the response body
             responseBody = response.text;
             responseBody.erase(responseBody.begin(),
                                std::find_if(responseBody.begin(), responseBody.end(), [](unsigned char ch) { return !std::isspace(ch); }));
@@ -45,16 +52,14 @@ namespace plugin {
                 std::find_if(responseBody.rbegin(), responseBody.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(),
                 responseBody.end());
 
-            auto end = std::chrono::high_resolution_clock::now();  // End timing
+            auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
 
-            // Log the result
             logger::info("HTTP GET to '{}' completed with status code: {} in {} ms", url, response.status_code, duration);
-
             return response.status_code;
         } catch (const std::exception& e) {
             logger::error("HTTP GET to '{}' failed: {}", url, e.what());
-            return -1;  // Return -1 to indicate an error
+            return -1;
         }
     }
 
@@ -71,8 +76,9 @@ namespace plugin {
 
                 auto start = std::chrono::high_resolution_clock::now();  // Start timing
 
-                auto response = cpr::Post(cpr::Url{url}, cpr::Body{payload},
-                                          cpr::Header{{"Content-Type", "application/json"}, {"User-Agent", userAgent}});
+                auto response =
+                    cpr::Post(cpr::Url{url}, cpr::Body{payload},
+                              cpr::Header{{"Content-Type", "application/json"}, {"User-Agent", userAgent}}, cpr::VerifySsl{false});
 
                 auto end = std::chrono::high_resolution_clock::now();  // End timing
                 auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();

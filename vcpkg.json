@@ -11,7 +11,14 @@
         "commonlibsse-ng",
         "spdlog",
         "boost-algorithm",
-        "cpr"
+        {
+          "name": "cpr",
+          "default-features": false,
+          "features": [
+            "ssl"
+          ]
+        },
+        "sqlitecpp"
       ]
     }
   },

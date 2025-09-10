@@ -1,5 +1,6 @@
 #include "GameEventHandler.h"
 #include "Hooks.h"
+#include "DatabaseFunctions.h"
 
 namespace plugin {
     void GameEventHandler::onLoad() {
@@ -21,6 +22,7 @@ namespace plugin {
 
     void GameEventHandler::onDataLoaded() {
         logger::info("onDataLoaded()");
+        InitializeDatabase();
     }
 
     void GameEventHandler::onNewGame() {
