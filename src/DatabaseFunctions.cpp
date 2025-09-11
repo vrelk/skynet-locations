@@ -110,6 +110,14 @@ namespace plugin {
         }
     }
 
+    // proposed usage:
+    // 1: get load order.
+    // 2: get all sql entries, then pick the one belonging to the highest load order mod.
+    //
+    // lookup order:
+    // 1: cell
+    // 2: location
+    // 3: worldspace
     RE::BSFixedString GetLocationDescription(RE::StaticFunctionTag*, std::string location_eid) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
@@ -276,6 +284,34 @@ namespace plugin {
                 // Open the database
                 SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
+                // Process locations
+                if (jsonData.contains("locations") && jsonData["locations"].is_object()) {
+                    for (const auto& [locationID, locationData]: jsonData["locations"].items()) {
+                        if (!locationData.is_object()) {
+                            logger::warn("Skipping invalid location data for key: {}", locationID);
+                            continue;
+                        }
+
+                        std::string name = locationData.value("name", "");                // Default to empty string if null
+                        std::string description = locationData.value("description", "");  // Default to empty string if null
+
+                        // Insert or update location description if it is null
+                        SQLite::Statement query(db, R"(
+                            INSERT INTO locations (location_eid, name, description)
+                            VALUES (?, ?, ?)
+                            ON CONFLICT(location_eid) DO UPDATE SET
+                                name = excluded.name,
+                                description = CASE WHEN description IS NULL THEN excluded.description ELSE description END
+                        )");
+                        query.bind(1, locationID);
+                        query.bind(2, name);
+                        query.bind(3, description);
+                        query.exec();
+                    }
+                } else {
+                    logger::warn("No valid locations object found in the JSON file.");
+                }
+
                 // Process quests
                 if (jsonData.contains("quests") && jsonData["quests"].is_object()) {
                     for (const auto& [questID, questData]: jsonData["quests"].items()) {
@@ -284,8 +320,8 @@ namespace plugin {
                             continue;
                         }
 
-                        std::string name = questData.value("name", "");
-                        std::string description = questData.value("description", "");
+                        std::string name = questData.value("name", "");                // Default to empty string if null
+                        std::string description = questData.value("description", "");  // Default to empty string if null
 
                         // Insert or update quest description if it is null
                         SQLite::Statement query(db, R"(
@@ -305,7 +341,7 @@ namespace plugin {
                             for (const auto& [stageKey, stageDesc]: questData["stages"].items()) {
                                 try {
                                     int stage = std::stoi(stageKey);
-                                    std::string stageDescription = stageDesc;
+                                    std::string stageDescription = stageDesc.is_null() ? "" : stageDesc.get<std::string>();
 
                                     // Insert or update stage description if it is null
                                     SQLite::Statement stageQuery(db, R"(
@@ -329,7 +365,7 @@ namespace plugin {
                             for (const auto& [objectiveKey, objectiveDesc]: questData["objectives"].items()) {
                                 try {
                                     int objective = std::stoi(objectiveKey);
-                                    std::string objectiveDescription = objectiveDesc;
+                                    std::string objectiveDescription = objectiveDesc.is_null() ? "" : objectiveDesc.get<std::string>();
 
                                     // Insert or update objective description if it is null
                                     SQLite::Statement objectiveQuery(db, R"(
