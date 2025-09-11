@@ -68,9 +68,12 @@ namespace plugin {
         //vm->RegisterFunction("jsonEncStrArr", "VrelkHttpClient", PapyrusJsonEncStrArr);
         vm->RegisterFunction("jsonEncJArray", "VrelkHttpClient", PapyrusJsonEncJArray);
         vm->RegisterFunction("jsonEncJMap", "VrelkHttpClient", PapyrusJsonEncJMap);
+
+        vm->RegisterFunction("getLocationDescription", "VrelkHttpClient", GetLocationDescription);
         vm->RegisterFunction("getQuestDescription", "VrelkHttpClient", GetQuestDescription);
         vm->RegisterFunction("getStageDescription", "VrelkHttpClient", GetStageDescription);
         vm->RegisterFunction("getObjectiveDescription", "VrelkHttpClient", GetObjectiveDescription);
+        vm->RegisterFunction("getSceneDescription", "VrelkHttpClient", GetSceneDescription);
         return true;
     }
 }  // namespace plugin

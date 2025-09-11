@@ -7,6 +7,12 @@
 
 /*
 {
+    "locations":{
+        "WhiterunLocation": {
+            "name": "Whiterun",
+            "description": "Something here"
+        }
+    },
 	"quests": {
 		"MQ101": {
 			"name": "Unbound",
@@ -40,9 +46,10 @@ namespace plugin {
             // Create the locations table
             db.exec(R"(
                 CREATE TABLE IF NOT EXISTS "locations" (
-                    "location_eid" VARCHAR(128) NOT NULL,
+                    "location_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
                     "name" VARCHAR(128) NULL,
                     "description" TEXT NULL,
+                    "notes" TEXT NULL,
                     PRIMARY KEY ("location_eid")
                 );
             )");
@@ -50,9 +57,10 @@ namespace plugin {
             // Create the quests table
             db.exec(R"(
                 CREATE TABLE IF NOT EXISTS "quests" (
-                    "quest_eid" VARCHAR(128) NOT NULL,
+                    "quest_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
                     "name" VARCHAR(256) NULL,
                     "description" TEXT NULL,
+                    "notes" TEXT NULL,
                     PRIMARY KEY ("quest_eid")
                 );
             )");
@@ -60,9 +68,10 @@ namespace plugin {
             // Create the stages table with a foreign key constraint
             db.exec(R"(
                 CREATE TABLE IF NOT EXISTS "stages" (
-                    "quest_eid" VARCHAR(128) NOT NULL,
+                    "quest_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
                     "stage" INT NOT NULL,
                     "description" TEXT NULL,
+                    "notes" TEXT NULL,
                     PRIMARY KEY ("quest_eid", "stage"),
                     FOREIGN KEY ("quest_eid") REFERENCES "quests" ("quest_eid")
                     ON DELETE RESTRICT
@@ -73,13 +82,25 @@ namespace plugin {
             // Create the objectives table with a foreign key constraint
             db.exec(R"(
                 CREATE TABLE IF NOT EXISTS "objectives" (
-                    "quest_eid" VARCHAR(128) NOT NULL,
+                    "quest_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
                     "objective" INT NOT NULL,
                     "description" TEXT NULL,
+                    "notes" TEXT NULL,
                     PRIMARY KEY ("quest_eid", "objective"),
                     FOREIGN KEY ("quest_eid") REFERENCES "quests" ("quest_eid")
                     ON DELETE RESTRICT
                     ON UPDATE CASCADE
+                );
+            )");
+
+            // Create the scenes table
+            db.exec(R"(
+                CREATE TABLE IF NOT EXISTS "scenes" (
+                    "scene_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
+                    "phase" INT NOT NULL,
+                    "description" TEXT NULL,
+                    "notes" TEXT NULL,
+                    PRIMARY KEY ("scene_eid", "phase")
                 );
             )");
 
@@ -89,11 +110,35 @@ namespace plugin {
         }
     }
 
+    RE::BSFixedString GetLocationDescription(RE::StaticFunctionTag*, std::string location_eid) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+            SQLite::Statement query(db, "SELECT description FROM locations WHERE location_eid = ?");
+            query.bind(1, location_eid);
+
+            if (query.executeStep()) {
+                return query.getColumn(0).getString();
+            } else {
+                logger::warn("No value found for key: {}", location_eid);
+
+                SQLite::Statement iquery(db, "INSERT OR IGNORE INTO locations (location_eid) VALUES (?)");
+                iquery.bind(1, location_eid);
+                iquery.exec();
+
+                return "";
+            }
+        } catch (const std::exception& e) {
+            logger::error("Failed to execute select query: {}", e.what());
+            return "";
+        }
+    }
+
     RE::BSFixedString GetQuestDescription(RE::StaticFunctionTag*, std::string quest_eid) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
-            SQLite::Statement query(db, "SELECT description FROM quests WHERE quest_eid = ? COLLATE NOCASE");
+            SQLite::Statement query(db, "SELECT description FROM quests WHERE quest_eid = ?");
             query.bind(1, quest_eid);
 
             if (query.executeStep()) {
@@ -117,7 +162,7 @@ namespace plugin {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
-            SQLite::Statement query(db, "SELECT description FROM stages WHERE quest_eid = ? AND stage = ? COLLATE NOCASE");
+            SQLite::Statement query(db, "SELECT description FROM stages WHERE quest_eid = ? AND stage = ?");
             query.bind(1, quest_eid);
             query.bind(2, stage);
 
@@ -143,7 +188,7 @@ namespace plugin {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
-            SQLite::Statement query(db, "SELECT description FROM objectives WHERE quest_eid = ? AND objective = ? COLLATE NOCASE");
+            SQLite::Statement query(db, "SELECT description FROM objectives WHERE quest_eid = ? AND objective = ?");
             query.bind(1, quest_eid);
             query.bind(2, objective);
 
@@ -155,6 +200,40 @@ namespace plugin {
                 SQLite::Statement iquery(db, "INSERT OR IGNORE INTO objectives (quest_eid, objective) VALUES (?, ?)");
                 iquery.bind(1, quest_eid);
                 iquery.bind(2, objective);
+                iquery.exec();
+
+                return "";
+            }
+        } catch (const std::exception& e) {
+            logger::error("Failed to execute select query: {}", e.what());
+            return "";
+        }
+    }
+
+    RE::BSFixedString GetSceneDescription(RE::StaticFunctionTag*, std::string scene_eid, int phase, bool exactMatch) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+            std::string sql = "SELECT description FROM scenes WHERE scene_eid = ? AND phase = ?";
+
+            if (!exactMatch) {
+                sql =
+                    "SELECT description FROM scenes WHERE scene_eid = ? AND phase <= ? AND description IS NOT NULL ORDER BY phase DESC "
+                    "LIMIT 1";
+            }
+
+            SQLite::Statement query(db, sql);
+            query.bind(1, scene_eid);
+            query.bind(2, phase);
+
+            if (query.executeStep()) {
+                return query.getColumn(0).getString();
+            } else {
+                logger::warn("No value found for key: {}", scene_eid);
+
+                SQLite::Statement iquery(db, "INSERT OR IGNORE INTO scenes (scene_eid, phase) VALUES (?, ?)");
+                iquery.bind(1, scene_eid);
+                iquery.bind(2, phase);
                 iquery.exec();
 
                 return "";
