@@ -28,10 +28,15 @@
 }
 */
 
+// Using SQLiteStudio to draft the schema
+// need to create a cells and worldspaces table.
+// determine best way to key them. FormID or EditorID, or both?
+
 namespace plugin {
     const std::string DATABASE_PATH = "Data/SKSE/Plugins/vrelk/VrelkDb.db";
     const std::string IMPORT_FOLDER_PATH = "Data/SKSE/Plugins/vrelk/import";
 
+    // MARK: - InitializeDatabase
     void InitializeDatabase() {
         try {
             // Ensure the database directory exists
@@ -45,69 +50,152 @@ namespace plugin {
 
             // Create the locations table
             db.exec(R"(
-                CREATE TABLE IF NOT EXISTS "locations" (
-                    "location_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
-                    "name" VARCHAR(128) NULL,
-                    "description" TEXT NULL,
-                    "notes" TEXT NULL,
-                    PRIMARY KEY ("location_eid")
+                CREATE TABLE locations (
+                    location_eid TEXT NOT NULL
+                                    COLLATE NOCASE,
+                    mod_name     TEXT NOT NULL
+                                    COLLATE NOCASE
+                                    DEFAULT [Skyrim.esm],
+                    name         TEXT NULL,
+                    description  TEXT NULL,
+                    notes        TEXT NULL,
+                    PRIMARY KEY (
+                        location_eid
+                    )
                 );
             )");
 
             // Create the quests table
             db.exec(R"(
-                CREATE TABLE IF NOT EXISTS "quests" (
-                    "quest_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
-                    "name" VARCHAR(256) NULL,
-                    "description" TEXT NULL,
-                    "notes" TEXT NULL,
-                    PRIMARY KEY ("quest_eid")
+                CREATE TABLE IF NOT EXISTS quests (
+                    quest_eid   TEXT NOT NULL
+                                    COLLATE NOCASE,
+                    name        TEXT NULL,
+                    description TEXT NULL,
+                    notes       TEXT NULL,
+                    PRIMARY KEY (
+                        quest_eid
+                    )
                 );
             )");
 
             // Create the stages table with a foreign key constraint
             db.exec(R"(
-                CREATE TABLE IF NOT EXISTS "stages" (
-                    "quest_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
-                    "stage" INT NOT NULL,
-                    "description" TEXT NULL,
-                    "notes" TEXT NULL,
-                    PRIMARY KEY ("quest_eid", "stage"),
-                    FOREIGN KEY ("quest_eid") REFERENCES "quests" ("quest_eid")
-                    ON DELETE RESTRICT
-                    ON UPDATE CASCADE
+                CREATE TABLE IF NOT EXISTS stages (
+                    quest_eid   TEXT NOT NULL
+                                    COLLATE NOCASE,
+                    stage       INT  NOT NULL,
+                    description TEXT NULL,
+                    notes       TEXT NULL,
+                    PRIMARY KEY (
+                        quest_eid,
+                        stage
+                    ),
+                    FOREIGN KEY (
+                        quest_eid
+                    )
+                    REFERENCES quests (quest_eid) ON DELETE RESTRICT
+                                                ON UPDATE CASCADE
                 );
             )");
 
             // Create the objectives table with a foreign key constraint
             db.exec(R"(
-                CREATE TABLE IF NOT EXISTS "objectives" (
-                    "quest_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
-                    "objective" INT NOT NULL,
-                    "description" TEXT NULL,
-                    "notes" TEXT NULL,
-                    PRIMARY KEY ("quest_eid", "objective"),
-                    FOREIGN KEY ("quest_eid") REFERENCES "quests" ("quest_eid")
-                    ON DELETE RESTRICT
-                    ON UPDATE CASCADE
+                CREATE TABLE IF NOT EXISTS objectives (
+                    quest_eid   TEXT NOT NULL
+                                    COLLATE NOCASE,
+                    objective   INT  NOT NULL,
+                    description TEXT NULL,
+                    notes       TEXT NULL,
+                    PRIMARY KEY (
+                        quest_eid,
+                        objective
+                    ),
+                    FOREIGN KEY (
+                        quest_eid
+                    )
+                    REFERENCES quests (quest_eid) ON DELETE RESTRICT
+                                                ON UPDATE CASCADE
                 );
             )");
 
             // Create the scenes table
             db.exec(R"(
-                CREATE TABLE IF NOT EXISTS "scenes" (
-                    "scene_eid" VARCHAR(128) NOT NULL COLLATE NOCASE,
-                    "phase" INT NOT NULL,
-                    "description" TEXT NULL,
-                    "notes" TEXT NULL,
-                    PRIMARY KEY ("scene_eid", "phase")
+                CREATE TABLE scenes (
+                    scene_eid   TEXT NOT NULL
+                                    COLLATE NOCASE,
+                    phase       INT  NOT NULL,
+                    description TEXT NULL,
+                    notes       TEXT NULL,
+                    PRIMARY KEY (
+                        scene_eid,
+                        phase
+                    )
                 );
             )");
+
+            // Create the load_order table
+            db.exec(R"(
+                CREATE TABLE IF NOT EXISTS load_order (
+                    priority INTEGER        PRIMARY KEY
+                                            NOT NULL,
+                    mod_name TEXT           NOT NULL,
+                    is_light INTEGER (1, 0) NOT NULL
+                                            CHECK (is_light IN (0, 1) ) 
+                );
+            )");
+
+            // Clear existing load order data
+            db.exec(R"(DELETE FROM load_order;)");
+
+            // Asynchronously update the load order
+            auto future = plugin::UpdateLoadOrderAsync();
+            // Optionally wait for completion
+            //future.get();
 
             logger::info("Database initialized successfully.");
         } catch (const std::exception& e) {
             logger::error("Failed to initialize database: {}", e.what());
         }
+    }
+
+    // MARK: - UpdateLoadOrderAsync
+    std::future<void> UpdateLoadOrderAsync() {
+        return std::async(std::launch::async, []() {
+            const auto dataHandler = RE::TESDataHandler::GetSingleton();
+            if (!dataHandler) {
+                logger::error("TESDataHandler is null!");
+                return;
+            }
+
+            try {
+                SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+                const auto& loadedMods = dataHandler->files;
+                for (const auto& mod: loadedMods) {
+                    if (mod) {
+                        const std::string& name = mod->GetFilename();
+                        uint8_t index = mod->compileIndex;                 // 0xFE for light plugins, 0x00–0xFF for others
+                        uint16_t lightIndex = mod->smallFileCompileIndex;  // For ESLs
+
+                        bool isLight = mod->IsLight();
+                        bool isLoaded = mod->IsActive();
+
+                        if (isLoaded) {
+                            SQLite::Statement query(db, "INSERT OR IGNORE INTO load_order (priority, mod_name, is_light) VALUES (?, ?, ?)");
+                            query.bind(1, isLight ? lightIndex + 256 : index);  // Offset light plugins to ensure proper ordering
+                            query.bind(2, name);
+                            query.bind(3, isLight ? 1 : 0);
+                            query.exec();
+                        }
+                    }
+                }
+
+                logger::info("Load order updated successfully.");
+            } catch (const std::exception& e) {
+                logger::error("Failed to execute update load order: {}", e.what());
+            }
+        });
     }
 
     // proposed usage:
@@ -118,6 +206,7 @@ namespace plugin {
     // 1: cell
     // 2: location
     // 3: worldspace
+    // MARK: - GetLocationDescription
     RE::BSFixedString GetLocationDescription(RE::StaticFunctionTag*, std::string location_eid) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
@@ -142,6 +231,7 @@ namespace plugin {
         }
     }
 
+    // MARK: - GetQuestDescription
     RE::BSFixedString GetQuestDescription(RE::StaticFunctionTag*, std::string quest_eid) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
@@ -166,6 +256,7 @@ namespace plugin {
         }
     }
 
+    // MARK: - GetStageDescription
     RE::BSFixedString GetStageDescription(RE::StaticFunctionTag*, std::string quest_eid, int stage) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
@@ -192,6 +283,7 @@ namespace plugin {
         }
     }
 
+    // MARK: - GetObjectiveDescription
     RE::BSFixedString GetObjectiveDescription(RE::StaticFunctionTag*, std::string quest_eid, int objective) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
@@ -218,6 +310,7 @@ namespace plugin {
         }
     }
 
+    // MARK: - GetSceneDescription
     RE::BSFixedString GetSceneDescription(RE::StaticFunctionTag*, std::string scene_eid, int phase, bool exactMatch) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
@@ -255,8 +348,9 @@ namespace plugin {
     /*
       // Import a single file asynchronously
       auto futureFile = plugin::ImportDataFromFileAsync("path/to/file.json");
-      futureFile.get(); // Wait for the operation to complete
+      futureFile.get(); // Optionally wait for the operation to complete
     */
+    // MARK: - ImportDataFromFolderAsync
     std::future<void> ImportDataFromFileAsync(const std::string& filename) {
         return std::async(std::launch::async, [filename]() {
             try {
@@ -398,8 +492,9 @@ namespace plugin {
     /*
       // Import all files in a folder asynchronously
       auto futureFolder = plugin::ImportDataFromFolderAsync("path/to/folder");
-      futureFolder.get(); // Wait for the operation to complete
+      futureFolder.get(); // Optionally qait for the operation to complete
     */
+    // MARK: - ImportDataFromFolderAsync
     std::future<void> ImportDataFromFolderAsync(const std::string& folderPath) {
         return std::async(std::launch::async, [folderPath]() {
             try {
