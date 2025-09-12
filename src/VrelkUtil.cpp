@@ -2,9 +2,66 @@
 #include <JSON.hpp>         // Ensure you have the nlohmann/json library included
 #include <jcontainers.hpp>  // Ensure you have JContainers included
 
-namespace plugin {
+namespace plugin::VrelkUtil {
 
     using json = nlohmann::json;
+
+    /**
+     * @brief Displays a message box in the game with the provided text and a single "Ok" button.
+     *
+     * @param message The text to display in the message box.
+     */
+    void ShowMessageBox(const std::string& message) {
+        using MessageBoxCallback = RE::IMessageBoxCallback;
+
+        class OkCallback : public MessageBoxCallback {
+            public:
+                void Run(uint32_t) override {
+                    // No additional action needed for "Ok" button
+                }
+        };
+
+        auto callback = RE::MakeFunction<OkCallback>();
+        RE::DebugNotification(message.c_str());  // Optional: Show a notification in addition to the message box
+
+        RE::MessageData messageData;
+        messageData.bodyText = message;
+        messageData.buttonText.push_back("Ok");
+        messageData.callback = callback;
+
+        RE::UIMessageQueue::GetSingleton()->AddMessage(RE::UI_MESSAGE_TYPE::kShowMessageBox, messageData);
+    }
+
+    /**
+     * @brief Converts an unsigned 32-bit integer to a string representation, either in decimal or hexadecimal format.
+     *
+     * @param a_int The unsigned 32-bit integer to convert.
+     * @param a_hex If true, the integer is converted to a hexadecimal string; otherwise, it is converted to a decimal string.
+     * @return A string representation of the integer. If `a_hex` is true, the result is a hexadecimal string prefixed with "0x".
+     *         - For hexadecimal conversion:
+     *           - If the hexadecimal string starts with "FE", the last 3 characters are used (excluding leading zeros).
+     *           - Otherwise, the last 6 characters are used (excluding leading zeros).
+     *         - For decimal conversion, the result is a standard decimal string.
+     */
+    std::string IntToHex(uint32_t a_int, bool a_hex) {
+        if (a_hex) {
+            std::string hexString = std::format("{:08X}", a_int);  // Convert to 8-character hex string
+            std::string result;
+
+            if (hexString.starts_with("FE")) {
+                result = hexString.substr(5, 3);  // Get the last 3 characters
+            } else {
+                result = hexString.substr(2, 6);  // Get the last 6 characters
+            }
+
+            // Remove leading zeros
+            result.erase(0, result.find_first_not_of('0'));
+
+            return "0x" + result;
+        }
+
+        return std::to_string(a_int);
+    }
 
     int FloatToInt(RE::StaticFunctionTag*, float a_value) {
         assert(sizeof(int) == sizeof(float));

@@ -1,0 +1,39 @@
+#include "RE/Skyrim.h"
+#include "SKSE/SKSE.h"
+#include "SKSE/API.h"
+#include "SKSE/Trampoline.h"
+#include "REL/Relocation.h"
+
+namespace {
+    // Hook function to intercept console commands
+    void Hook_ConsoleCommand(RE::ConsoleLog* consoleLog, const char* command) {
+        if (command && std::string_view(command).starts_with("additem")) {
+            // Log or handle the `additem` command
+            SKSE::log::info("Player executed additem command: {}", command);
+
+            // You can add additional logic here, such as parsing the command arguments
+        }
+
+        // Call the original function
+        using func_t = decltype(&Hook_ConsoleCommand);
+        REL::Relocation<func_t> originalFunc{REL::ID(12345)};  // Replace 12345 with the actual ID of the function
+        originalFunc(consoleLog, command);
+    }
+
+    void InstallHook() {
+        // Locate the function to hook
+        REL::Relocation<std::uintptr_t> target{REL::ID(12345)};  // Replace 12345 with the actual ID of the function
+        auto& trampoline = SKSE::GetTrampoline();
+        trampoline.write_call<5>(target.address(), Hook_ConsoleCommand);
+    }
+}  // namespace
+
+SKSEPluginLoad(const SKSE::LoadInterface* skse) {
+    SKSE::Init(skse);
+
+    SKSE::log::info("ConsoleUtil plugin loaded");
+
+    InstallHook();
+
+    return true;
+}
