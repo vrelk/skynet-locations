@@ -231,4 +231,5 @@ namespace plugin::LookupHelpers {
                 .name = cell->GetName() ? std::string(cell->GetName()) : "",  // Convert std::string_view to std::string
                 .sourceMod = GetFormModName(cell, false)};
     }
+
 }  // namespace plugin::LookupHelpers

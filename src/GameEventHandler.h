@@ -10,6 +10,7 @@ namespace plugin {
             GameEventHandler(GameEventHandler&) = delete;
             GameEventHandler& operator=(GameEventHandler&&) = delete;
             void operator=(GameEventHandler&) = delete;
+
         public:
             [[nodiscard]] static GameEventHandler& getInstance() {
                 static GameEventHandler instance;
@@ -26,5 +27,8 @@ namespace plugin {
             void onPostLoadGame() override;
             void onSaveGame() override;
             void onDeleteGame() override;
+
+            void SetCurrentStageID_Hook(RE::TESQuest* quest, std::uint16_t stage);
+            void InstallQuestStageHook();
     };
 }  // namespace plugin

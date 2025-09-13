@@ -1,11 +1,11 @@
 #include "GameEventHandler.h"
 #include "Hooks.h"
 #include "DatabaseFunctions.h"
-//#include "ConsoleCommands.h"
 
 using namespace plugin::DatabaseFunctions;
 
 namespace plugin {
+
     void GameEventHandler::onLoad() {
         logger::info("onLoad()");
         Hooks::install();

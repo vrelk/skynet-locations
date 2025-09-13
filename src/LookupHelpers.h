@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <tuple>
 
 namespace plugin::LookupHelpers {
     struct FormResult;
