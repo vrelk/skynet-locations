@@ -12,6 +12,7 @@ using namespace SKSE::stl;
 #include "DatabaseFunctions.h"
 #include "HTTPClient.h"
 #include "VrelkUtil.h"
+#include "PapyrusFunctions.h"
 
 namespace plugin {
     std::optional<std::filesystem::path> getLogDirectory() {
@@ -57,25 +58,6 @@ namespace plugin {
         spdlog::set_default_logger(std::move(log));
         spdlog::set_pattern(PLUGIN_LOGPATTERN_DEFAULT);
     }
-
-    // Function to bind Papyrus functions
-    bool BindPapyrusFunctions(RE::BSScript::IVirtualMachine* vm) {
-        vm->RegisterFunction("httpGetAsync", "VrelkHttpClient", PapyrusHttpGet);
-        vm->RegisterFunction("httpPostAsync", "VrelkHttpClient", PapyrusHttpPost);
-        //vm->RegisterFunction("floatToInt", "VrelkHttpClient", FloatToInt);
-        //vm->RegisterFunction("isPlayer", "VrelkHttpClient", IsPlayer);
-        //vm->RegisterFunction("getActorName", "VrelkHttpClient", GetActorName);
-        //vm->RegisterFunction("jsonEncStrArr", "VrelkHttpClient", PapyrusJsonEncStrArr);
-        //vm->RegisterFunction("jsonEncJArray", "VrelkHttpClient", PapyrusJsonEncJArray);
-        //vm->RegisterFunction("jsonEncJMap", "VrelkHttpClient", PapyrusJsonEncJMap);
-
-        //vm->RegisterFunction("getLocationDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetLocationDescription);
-        vm->RegisterFunction("getQuestDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetQuestDescription);
-        vm->RegisterFunction("getStageDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetStageDescription);
-        vm->RegisterFunction("getObjectiveDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetObjectiveDescription);
-        vm->RegisterFunction("getSceneDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetSceneDescription);
-        return true;
-    }
 }  // namespace plugin
 
 std::string getJContainersPluginName() {
@@ -120,7 +102,7 @@ extern "C" DLLEXPORT bool SKSEPlugin_Load(const LoadInterface* skse) {
     loadJContainers();
 
     // Register our Papyrus functions.
-    if (!papyrus->Register(BindPapyrusFunctions)) {
+    if (!papyrus->Register(plugin::PapyrusFunctions::RegisterFunctions)) {
         return false;
     }
 

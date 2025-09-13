@@ -27,7 +27,7 @@ namespace plugin {
         logger::info("onDataLoaded()");
         InitializeDatabase();
         auto jsonImport = ImportDataFromFolderAsync(IMPORT_FOLDER_PATH);
-        //jsonImport.get();  // Optionally wait for the operation to complete
+        jsonImport.get();  // Optionally wait for the operation to complete
 
         //plugin::ConsoleCommands::RegisterMyConsoleCommand();
     }

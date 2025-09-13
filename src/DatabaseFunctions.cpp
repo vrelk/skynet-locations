@@ -124,7 +124,7 @@ namespace plugin::DatabaseFunctions {
 
             // Create the description_cell table
             db.exec(R"(
-                CREATE TABLE description_cell (
+                CREATE TABLE IF NOT EXISTS description_cell (
                     mod_name    TEXT     NOT NULL
                                         COLLATE NOCASE
                                         CHECK (mod_name = TRIM(mod_name) ) 
@@ -237,7 +237,7 @@ namespace plugin::DatabaseFunctions {
 
             // Create the scenes table
             db.exec(R"(
-                CREATE TABLE scenes (
+                CREATE TABLE IF NOT EXISTS scenes (
                     scene_eid   TEXT NOT NULL
                                     COLLATE NOCASE,
                     phase       INT  NOT NULL,
@@ -256,7 +256,7 @@ namespace plugin::DatabaseFunctions {
             // Asynchronously update the load order
             auto future = UpdateLoadOrderAsync();
             // Optionally wait for completion
-            //future.get();
+            future.get();
 
             logger::info("Database initialized successfully.");
         } catch (const std::exception& e) {
@@ -391,7 +391,7 @@ namespace plugin::DatabaseFunctions {
     }
 
     // MARK: - GetQuestDescription
-    RE::BSFixedString GetQuestDescription(RE::StaticFunctionTag*, std::string quest_eid) {
+    std::string GetQuestDescription(std::string quest_eid) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
@@ -416,7 +416,7 @@ namespace plugin::DatabaseFunctions {
     }
 
     // MARK: - GetStageDescription
-    RE::BSFixedString GetStageDescription(RE::StaticFunctionTag*, std::string quest_eid, int stage) {
+    std::string GetStageDescription(std::string quest_eid, int stage) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
@@ -443,7 +443,7 @@ namespace plugin::DatabaseFunctions {
     }
 
     // MARK: - GetObjectiveDescription
-    RE::BSFixedString GetObjectiveDescription(RE::StaticFunctionTag*, std::string quest_eid, int objective) {
+    std::string GetObjectiveDescription(std::string quest_eid, int objective) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
@@ -470,7 +470,7 @@ namespace plugin::DatabaseFunctions {
     }
 
     // MARK: - GetSceneDescription
-    RE::BSFixedString GetSceneDescription(RE::StaticFunctionTag*, std::string scene_eid, int phase, bool exactMatch) {
+    std::string GetSceneDescription(std::string scene_eid, int phase, bool exactMatch) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 

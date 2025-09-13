@@ -12,10 +12,10 @@ namespace plugin::DatabaseFunctions {
     plugin::DataTypes::LocationLookupResult GetCellDescription(const std::string& form_id);
     plugin::DataTypes::LocationLookupResult GetLocationDescription(const std::string& editor_id);
     plugin::DataTypes::LocationLookupResult GetWorldspaceDescription(const std::string& editor_id);
-    RE::BSFixedString GetQuestDescription(RE::StaticFunctionTag*, std::string quest_eid);
-    RE::BSFixedString GetStageDescription(RE::StaticFunctionTag*, std::string quest_eid, int stage);
-    RE::BSFixedString GetObjectiveDescription(RE::StaticFunctionTag*, std::string quest_eid, int objective);
-    RE::BSFixedString GetSceneDescription(RE::StaticFunctionTag*, std::string scene_eid, int phase, bool exactMatch = false);
+    std::string GetQuestDescription(std::string quest_eid);
+    std::string GetStageDescription(std::string quest_eid, int stage);
+    std::string GetObjectiveDescription(std::string quest_eid, int objective);
+    std::string GetSceneDescription(std::string scene_eid, int phase, bool exactMatch = false);
 
     std::future<void> ImportDataFromFileAsync(const std::string& filename);
     std::future<void> ImportDataFromFolderAsync(const std::string& folderPath);
