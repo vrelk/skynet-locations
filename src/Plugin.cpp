@@ -66,14 +66,14 @@ namespace plugin {
         //vm->RegisterFunction("isPlayer", "VrelkHttpClient", IsPlayer);
         //vm->RegisterFunction("getActorName", "VrelkHttpClient", GetActorName);
         //vm->RegisterFunction("jsonEncStrArr", "VrelkHttpClient", PapyrusJsonEncStrArr);
-        vm->RegisterFunction("jsonEncJArray", "VrelkHttpClient", PapyrusJsonEncJArray);
-        vm->RegisterFunction("jsonEncJMap", "VrelkHttpClient", PapyrusJsonEncJMap);
+        //vm->RegisterFunction("jsonEncJArray", "VrelkHttpClient", PapyrusJsonEncJArray);
+        //vm->RegisterFunction("jsonEncJMap", "VrelkHttpClient", PapyrusJsonEncJMap);
 
-        vm->RegisterFunction("getLocationDescription", "VrelkHttpClient", GetLocationDescription);
-        vm->RegisterFunction("getQuestDescription", "VrelkHttpClient", GetQuestDescription);
-        vm->RegisterFunction("getStageDescription", "VrelkHttpClient", GetStageDescription);
-        vm->RegisterFunction("getObjectiveDescription", "VrelkHttpClient", GetObjectiveDescription);
-        vm->RegisterFunction("getSceneDescription", "VrelkHttpClient", GetSceneDescription);
+        //vm->RegisterFunction("getLocationDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetLocationDescription);
+        vm->RegisterFunction("getQuestDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetQuestDescription);
+        vm->RegisterFunction("getStageDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetStageDescription);
+        vm->RegisterFunction("getObjectiveDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetObjectiveDescription);
+        vm->RegisterFunction("getSceneDescription", "VrelkHttpClient", plugin::DatabaseFunctions::GetSceneDescription);
         return true;
     }
 }  // namespace plugin

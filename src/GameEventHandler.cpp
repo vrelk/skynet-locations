@@ -1,6 +1,9 @@
 #include "GameEventHandler.h"
 #include "Hooks.h"
 #include "DatabaseFunctions.h"
+//#include "ConsoleCommands.h"
+
+using namespace plugin::DatabaseFunctions;
 
 namespace plugin {
     void GameEventHandler::onLoad() {
@@ -25,6 +28,8 @@ namespace plugin {
         InitializeDatabase();
         auto jsonImport = ImportDataFromFolderAsync(IMPORT_FOLDER_PATH);
         //jsonImport.get();  // Optionally wait for the operation to complete
+
+        //plugin::ConsoleCommands::RegisterMyConsoleCommand();
     }
 
     void GameEventHandler::onNewGame() {

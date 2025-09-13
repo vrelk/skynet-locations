@@ -11,6 +11,7 @@ namespace plugin::VrelkUtil {
      *
      * @param message The text to display in the message box.
      */
+    /*
     void ShowMessageBox(const std::string& message) {
         using MessageBoxCallback = RE::IMessageBoxCallback;
 
@@ -31,6 +32,7 @@ namespace plugin::VrelkUtil {
 
         RE::UIMessageQueue::GetSingleton()->AddMessage(RE::UI_MESSAGE_TYPE::kShowMessageBox, messageData);
     }
+    */
 
     /**
      * @brief Converts an unsigned 32-bit integer to a string representation, either in decimal or hexadecimal format.
@@ -43,7 +45,7 @@ namespace plugin::VrelkUtil {
      *           - Otherwise, the last 6 characters are used (excluding leading zeros).
      *         - For decimal conversion, the result is a standard decimal string.
      */
-    std::string IntToHex(uint32_t a_int, bool a_hex) {
+    std::string IntToString(uint32_t a_int, bool a_hex) {
         if (a_hex) {
             std::string hexString = std::format("{:08X}", a_int);  // Convert to 8-character hex string
             std::string result;

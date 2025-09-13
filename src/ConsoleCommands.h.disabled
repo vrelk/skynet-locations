@@ -1,0 +1,8 @@
+#pragma once
+
+#include <string>
+
+namespace plugin::ConsoleCommands {
+    void RegisterMyConsoleCommand();
+    void MyConsoleCommand(void*, void*, RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double& result, uint32_t&);
+}  // namespace plugin::ConsoleCommands

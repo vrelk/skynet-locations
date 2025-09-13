@@ -4,13 +4,32 @@
 #include "DatabaseFunctions.h"
 #include <future>  // Required for async operations
 #include "JSON.hpp"
+#include "DataTypes.h"
 
 /*
 {
+    "cells": {
+        "Skyrim.esm": {
+            "0x1A9B2": {
+                "name": "Whiterun",
+                "description": "Something here"
+            }
+        }
+    },
+    "worldspaces": {
+        "Skyrim.esm": {
+            "Tamriel": {
+                "name": "Tamriel",
+                "description": "Something here"
+            }
+        }
+    },
     "locations":{
-        "WhiterunLocation": {
-            "name": "Whiterun",
-            "description": "Something here"
+        "Skyrim.esm": {
+            "WhiterunLocation": {
+                "name": "Whiterun",
+                "description": "Something here"
+            }
         }
     },
 	"quests": {
@@ -32,9 +51,52 @@
 // need to create a cells and worldspaces table.
 // determine best way to key them. FormID or EditorID, or both?
 
-namespace plugin {
+namespace plugin::DatabaseFunctions {
     const std::string DATABASE_PATH = "Data/SKSE/Plugins/vrelk/VrelkDb.db";
     const std::string IMPORT_FOLDER_PATH = "Data/SKSE/Plugins/vrelk/import";
+
+    // MARK: - UpdateLoadOrderAsync
+    std::future<void> UpdateLoadOrderAsync() {
+        return std::async(std::launch::async, []() {
+            try {
+                SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+                auto dataHandler = RE::TESDataHandler::GetSingleton();
+                if (!dataHandler) {
+                    // Handle null case
+                }
+
+                SQLite::Statement query(db, R"(
+                    INSERT OR REPLACE INTO load_order (priority, mod_name, is_light)
+                    VALUES (?, ?, ?)
+                )");
+
+                int sequentialIndex = 0;
+                auto& files = dataHandler->files;
+
+                for (auto it = files.begin(); it != files.end(); ++it) {
+                    RE::TESFile* mod = *it;
+                    if (!mod) {
+                        continue;
+                    }
+
+                    std::string_view nameView = mod->GetFilename();
+                    std::string name(nameView);  // Convert to std::string
+                    bool isLight = mod->IsLight();
+
+                    query.bind(1, sequentialIndex++);
+                    query.bind(2, name);
+                    query.bind(3, isLight ? 1 : 0);
+                    query.exec();
+                    query.reset();  // Reset for next iteration
+                }
+
+                logger::info("Load order updated successfully.");
+            } catch (const std::exception& e) {
+                logger::error("Failed to execute update load order: {}", e.what());
+            }
+        });
+    }
 
     // MARK: - InitializeDatabase
     void InitializeDatabase() {
@@ -48,19 +110,73 @@ namespace plugin {
             // Enable foreign key constraints
             db.exec("PRAGMA foreign_keys = ON;");
 
-            // Create the locations table
+            // Create the load_order table
             db.exec(R"(
-                CREATE TABLE locations (
-                    location_eid TEXT NOT NULL
-                                    COLLATE NOCASE,
-                    mod_name     TEXT NOT NULL
-                                    COLLATE NOCASE
-                                    DEFAULT [Skyrim.esm],
-                    name         TEXT NULL,
-                    description  TEXT NULL,
-                    notes        TEXT NULL,
+                CREATE TABLE IF NOT EXISTS load_order (
+                    priority INTEGER        PRIMARY KEY
+                                            NOT NULL,
+                    mod_name TEXT           NOT NULL,
+                    is_light INTEGER (1, 0) NOT NULL
+                                            CHECK (is_light IN (0, 1) )
+                                            DEFAULT (0)
+                );
+            )");
+
+            // Create the description_cell table
+            db.exec(R"(
+                CREATE TABLE description_cell (
+                    mod_name    TEXT     NOT NULL
+                                        COLLATE NOCASE
+                                        CHECK (mod_name = TRIM(mod_name) ) 
+                                        DEFAULT ('Skyrim.esm'),
+                    form_id     TEXT (8) NOT NULL
+                                        CHECK (form_id LIKE '0x%' AND
+                                                LENGTH(form_id) BETWEEN 3 AND 8) 
+                                        COLLATE NOCASE,
+                    name        TEXT,
+                    description TEXT,
+                    notes       TEXT,
                     PRIMARY KEY (
-                        location_eid
+                        mod_name,
+                        form_id
+                    )
+                );
+            )");
+
+            // Create the description_location table
+            db.exec(R"(
+                CREATE TABLE IF NOT EXISTS description_location (
+                    mod_name    TEXT     NOT NULL
+                                        COLLATE NOCASE
+                                        CHECK (mod_name = TRIM(mod_name) )
+                                        DEFAULT ('Skyrim.esm'),
+                    editor_id    TEXT NOT NULL
+                                    COLLATE NOCASE,
+                    name         TEXT,
+                    description  TEXT,
+                    notes        TEXT,
+                    PRIMARY KEY (
+                        mod_name,
+                        editor_id
+                    )
+                );
+            )");
+
+            // Create the description_worldspace table
+            db.exec(R"(
+                CREATE TABLE IF NOT EXISTS description_worldspace (
+                    mod_name    TEXT     NOT NULL
+                                        COLLATE NOCASE
+                                        CHECK (mod_name = TRIM(mod_name) )
+                                        DEFAULT ('Skyrim.esm'),
+                    editor_id    TEXT NOT NULL
+                                    COLLATE NOCASE,
+                    name         TEXT,
+                    description  TEXT,
+                    notes        TEXT,
+                    PRIMARY KEY (
+                        mod_name,
+                        editor_id
                     )
                 );
             )");
@@ -134,22 +250,11 @@ namespace plugin {
                 );
             )");
 
-            // Create the load_order table
-            db.exec(R"(
-                CREATE TABLE IF NOT EXISTS load_order (
-                    priority INTEGER        PRIMARY KEY
-                                            NOT NULL,
-                    mod_name TEXT           NOT NULL,
-                    is_light INTEGER (1, 0) NOT NULL
-                                            CHECK (is_light IN (0, 1) ) 
-                );
-            )");
-
             // Clear existing load order data
             db.exec(R"(DELETE FROM load_order;)");
 
             // Asynchronously update the load order
-            auto future = plugin::UpdateLoadOrderAsync();
+            auto future = UpdateLoadOrderAsync();
             // Optionally wait for completion
             //future.get();
 
@@ -159,75 +264,129 @@ namespace plugin {
         }
     }
 
-    // MARK: - UpdateLoadOrderAsync
-    std::future<void> UpdateLoadOrderAsync() {
-        return std::async(std::launch::async, []() {
-            const auto dataHandler = RE::TESDataHandler::GetSingleton();
-            if (!dataHandler) {
-                logger::error("TESDataHandler is null!");
-                return;
-            }
-
-            try {
-                SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
-
-                const auto& loadedMods = dataHandler->files;
-                for (const auto& mod: loadedMods) {
-                    if (mod) {
-                        const std::string& name = mod->GetFilename();
-                        uint8_t index = mod->compileIndex;                 // 0xFE for light plugins, 0x00–0xFF for others
-                        uint16_t lightIndex = mod->smallFileCompileIndex;  // For ESLs
-
-                        bool isLight = mod->IsLight();
-                        bool isLoaded = mod->IsActive();
-
-                        if (isLoaded) {
-                            SQLite::Statement query(db, "INSERT OR IGNORE INTO load_order (priority, mod_name, is_light) VALUES (?, ?, ?)");
-                            query.bind(1, isLight ? lightIndex + 256 : index);  // Offset light plugins to ensure proper ordering
-                            query.bind(2, name);
-                            query.bind(3, isLight ? 1 : 0);
-                            query.exec();
-                        }
-                    }
-                }
-
-                logger::info("Load order updated successfully.");
-            } catch (const std::exception& e) {
-                logger::error("Failed to execute update load order: {}", e.what());
-            }
-        });
-    }
-
-    // proposed usage:
-    // 1: get load order.
-    // 2: get all sql entries, then pick the one belonging to the highest load order mod.
-    //
-    // lookup order:
-    // 1: cell
-    // 2: location
-    // 3: worldspace
-    // MARK: - GetLocationDescription
-    RE::BSFixedString GetLocationDescription(RE::StaticFunctionTag*, std::string location_eid) {
+    /**
+     * @brief Retrieves the name and description of a cell based on the provided form ID.
+     *
+     * @param form_id The form ID of the cell as a string.
+     * @return types::LocationLookupResult A structure containing the lookup result.
+     */
+    // MARK: - GetCellDescription
+    plugin::DataTypes::LocationLookupResult GetCellDescription(const std::string& form_id) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
-            SQLite::Statement query(db, "SELECT description FROM locations WHERE location_eid = ?");
-            query.bind(1, location_eid);
+            SQLite::Statement query(db, R"(
+                SELECT 
+                    dc.name,
+                    dc.description
+                FROM description_cell dc
+                INNER JOIN load_order lo ON dc.mod_name = lo.mod_name
+                WHERE dc.form_id = ?
+                ORDER BY lo.priority ASC
+                LIMIT 1;
+            )");
+
+            query.bind(1, form_id);
 
             if (query.executeStep()) {
-                return query.getColumn(0).getString();
+                // Retrieve the name and description from the query result
+                std::string name = query.getColumn(0).isNull() ? "" : query.getColumn(0).getString();
+                std::string description = query.getColumn(1).isNull() ? "" : query.getColumn(1).getString();
+
+                return {.found = true, .name = name, .description = description};
             } else {
-                logger::warn("No value found for key: {}", location_eid);
+                logger::warn("No value found for form_id: {}", form_id);
 
-                SQLite::Statement iquery(db, "INSERT OR IGNORE INTO locations (location_eid) VALUES (?)");
-                iquery.bind(1, location_eid);
-                iquery.exec();
-
-                return "";
+                return {.found = false};
             }
         } catch (const std::exception& e) {
-            logger::error("Failed to execute select query: {}", e.what());
-            return "";
+            logger::error("Failed to execute query for form_id {}: {}", form_id, e.what());
+
+            return {.found = false};
+        }
+    }
+
+    /**
+     * @brief Retrieves the name and description of a location based on the provided editor ID.
+     *
+     * @param editor_id The editor ID of the location as a string.
+     * @return types::LocationLookupResult A structure containing the lookup result.
+     */
+    // MARK: - GetLocationDescription
+    plugin::DataTypes::LocationLookupResult GetLocationDescription(const std::string& editor_id) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+            SQLite::Statement query(db, R"(
+                SELECT 
+                    dc.name,
+                    dc.description
+                FROM description_location dc
+                INNER JOIN load_order lo ON dc.mod_name = lo.mod_name
+                WHERE dc.editor_id = ?
+                ORDER BY lo.priority ASC
+                LIMIT 1;
+            )");
+
+            query.bind(1, editor_id);
+
+            if (query.executeStep()) {
+                // Retrieve the name and description from the query result
+                std::string name = query.getColumn(0).isNull() ? "" : query.getColumn(0).getString();
+                std::string description = query.getColumn(1).isNull() ? "" : query.getColumn(1).getString();
+
+                return {.found = true, .name = name, .description = description};
+            } else {
+                logger::warn("No value found for editor_id: {}", editor_id);
+
+                return {.found = false};
+            }
+        } catch (const std::exception& e) {
+            logger::error("Failed to execute query for editor_id {}: {}", editor_id, e.what());
+
+            return {.found = false};
+        }
+    }
+
+    /**
+     * @brief Retrieves the name and description of a worldspace based on the provided editor ID.
+     *
+     * @param editor_id The editor ID of the worldspace as a string.
+     * @return types::LocationLookupResult A structure containing the lookup result.
+     */
+    // MARK: - GetWorldspaceDescription
+    plugin::DataTypes::LocationLookupResult GetWorldspaceDescription(const std::string& editor_id) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+            SQLite::Statement query(db, R"(
+                SELECT 
+                    dc.name,
+                    dc.description
+                FROM description_worldspace dc
+                INNER JOIN load_order lo ON dc.mod_name = lo.mod_name
+                WHERE dc.editor_id = ?
+                ORDER BY lo.priority ASC
+                LIMIT 1;
+            )");
+
+            query.bind(1, editor_id);
+
+            if (query.executeStep()) {
+                // Retrieve the name and description from the query result
+                std::string name = query.getColumn(0).isNull() ? "" : query.getColumn(0).getString();
+                std::string description = query.getColumn(1).isNull() ? "" : query.getColumn(1).getString();
+
+                return {.found = true, .name = name, .description = description};
+            } else {
+                logger::warn("No value found for editor_id: {}", editor_id);
+
+                return {.found = false};
+            }
+        } catch (const std::exception& e) {
+            logger::error("Failed to execute query for editor_id {}: {}", editor_id, e.what());
+
+            return {.found = false};
         }
     }
 
@@ -350,7 +509,7 @@ namespace plugin {
       auto futureFile = plugin::ImportDataFromFileAsync("path/to/file.json");
       futureFile.get(); // Optionally wait for the operation to complete
     */
-    // MARK: - ImportDataFromFolderAsync
+    // MARK: - ImportDataFromFileAsync
     std::future<void> ImportDataFromFileAsync(const std::string& filename) {
         return std::async(std::launch::async, [filename]() {
             try {
@@ -378,29 +537,106 @@ namespace plugin {
                 // Open the database
                 SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
-                // Process locations
-                if (jsonData.contains("locations") && jsonData["locations"].is_object()) {
-                    for (const auto& [locationID, locationData]: jsonData["locations"].items()) {
-                        if (!locationData.is_object()) {
-                            logger::warn("Skipping invalid location data for key: {}", locationID);
+                // Process cells
+                if (jsonData.contains("cells") && jsonData["cells"].is_object()) {
+                    for (const auto& [modName, cells]: jsonData["cells"].items()) {
+                        if (!cells.is_object()) {
+                            logger::warn("Skipping invalid cells data for mod: {}", modName);
                             continue;
                         }
 
-                        std::string name = locationData.value("name", "");                // Default to empty string if null
-                        std::string description = locationData.value("description", "");  // Default to empty string if null
+                        for (const auto& [formID, cellData]: cells.items()) {
+                            if (!cellData.is_object()) {
+                                logger::warn("Skipping invalid cell data for formID: {}", formID);
+                                continue;
+                            }
 
-                        // Insert or update location description if it is null
-                        SQLite::Statement query(db, R"(
-                            INSERT INTO locations (location_eid, name, description)
-                            VALUES (?, ?, ?)
-                            ON CONFLICT(location_eid) DO UPDATE SET
-                                name = excluded.name,
-                                description = CASE WHEN description IS NULL THEN excluded.description ELSE description END
-                        )");
-                        query.bind(1, locationID);
-                        query.bind(2, name);
-                        query.bind(3, description);
-                        query.exec();
+                            std::string name = cellData.value("name", "");
+                            std::string description = cellData.value("description", "");
+
+                            SQLite::Statement query(db, R"(
+                                INSERT INTO description_cell (mod_name, form_id, name, description)
+                                VALUES (?, ?, ?, ?)
+                                ON CONFLICT(mod_name, form_id) DO UPDATE SET
+                                    name = excluded.name,
+                                    description = excluded.description
+                            )");
+                            query.bind(1, modName);
+                            query.bind(2, formID);
+                            query.bind(3, name);
+                            query.bind(4, description);
+                            query.exec();
+                        }
+                    }
+                } else {
+                    logger::warn("No valid cells object found in the JSON file.");
+                }
+
+                // Process worldspaces
+                if (jsonData.contains("worldspaces") && jsonData["worldspaces"].is_object()) {
+                    for (const auto& [modName, worldspaces]: jsonData["worldspaces"].items()) {
+                        if (!worldspaces.is_object()) {
+                            logger::warn("Skipping invalid worldspaces data for mod: {}", modName);
+                            continue;
+                        }
+
+                        for (const auto& [editorID, worldspaceData]: worldspaces.items()) {
+                            if (!worldspaceData.is_object()) {
+                                logger::warn("Skipping invalid worldspace data for editorID: {}", editorID);
+                                continue;
+                            }
+
+                            std::string name = worldspaceData.value("name", "");
+                            std::string description = worldspaceData.value("description", "");
+
+                            SQLite::Statement query(db, R"(
+                                INSERT INTO description_worldspace (mod_name, editor_id, name, description)
+                                VALUES (?, ?, ?, ?)
+                                ON CONFLICT(mod_name, editor_id) DO UPDATE SET
+                                    name = excluded.name,
+                                    description = excluded.description
+                            )");
+                            query.bind(1, modName);
+                            query.bind(2, editorID);
+                            query.bind(3, name);
+                            query.bind(4, description);
+                            query.exec();
+                        }
+                    }
+                } else {
+                    logger::warn("No valid worldspaces object found in the JSON file.");
+                }
+
+                // Process locations
+                if (jsonData.contains("locations") && jsonData["locations"].is_object()) {
+                    for (const auto& [modName, locations]: jsonData["locations"].items()) {
+                        if (!locations.is_object()) {
+                            logger::warn("Skipping invalid locations data for mod: {}", modName);
+                            continue;
+                        }
+
+                        for (const auto& [editorID, locationData]: locations.items()) {
+                            if (!locationData.is_object()) {
+                                logger::warn("Skipping invalid location data for editorID: {}", editorID);
+                                continue;
+                            }
+
+                            std::string name = locationData.value("name", "");
+                            std::string description = locationData.value("description", "");
+
+                            SQLite::Statement query(db, R"(
+                                INSERT INTO description_location (mod_name, editor_id, name, description)
+                                VALUES (?, ?, ?, ?)
+                                ON CONFLICT(mod_name, editor_id) DO UPDATE SET
+                                    name = excluded.name,
+                                    description = excluded.description
+                            )");
+                            query.bind(1, modName);
+                            query.bind(2, editorID);
+                            query.bind(3, name);
+                            query.bind(4, description);
+                            query.exec();
+                        }
                     }
                 } else {
                     logger::warn("No valid locations object found in the JSON file.");
@@ -410,70 +646,67 @@ namespace plugin {
                 if (jsonData.contains("quests") && jsonData["quests"].is_object()) {
                     for (const auto& [questID, questData]: jsonData["quests"].items()) {
                         if (!questData.is_object()) {
-                            logger::warn("Skipping invalid quest data for key: {}", questID);
+                            logger::warn("Skipping invalid quest data for questID: {}", questID);
                             continue;
                         }
 
-                        std::string name = questData.value("name", "");                // Default to empty string if null
-                        std::string description = questData.value("description", "");  // Default to empty string if null
+                        std::string name = questData.value("name", "");
+                        std::string description = questData.value("description", "");
 
-                        // Insert or update quest description if it is null
                         SQLite::Statement query(db, R"(
                             INSERT INTO quests (quest_eid, name, description)
                             VALUES (?, ?, ?)
                             ON CONFLICT(quest_eid) DO UPDATE SET
                                 name = excluded.name,
-                                description = CASE WHEN description IS NULL THEN excluded.description ELSE description END
+                                description = excluded.description
                         )");
                         query.bind(1, questID);
                         query.bind(2, name);
                         query.bind(3, description);
                         query.exec();
 
-                        // Process stages for the quest
+                        // Process stages
                         if (questData.contains("stages") && questData["stages"].is_object()) {
                             for (const auto& [stageKey, stageDesc]: questData["stages"].items()) {
                                 try {
                                     int stage = std::stoi(stageKey);
                                     std::string stageDescription = stageDesc.is_null() ? "" : stageDesc.get<std::string>();
 
-                                    // Insert or update stage description if it is null
                                     SQLite::Statement stageQuery(db, R"(
                                         INSERT INTO stages (quest_eid, stage, description)
                                         VALUES (?, ?, ?)
                                         ON CONFLICT(quest_eid, stage) DO UPDATE SET
-                                            description = CASE WHEN description IS NULL THEN excluded.description ELSE description END
+                                            description = excluded.description
                                     )");
                                     stageQuery.bind(1, questID);
                                     stageQuery.bind(2, stage);
                                     stageQuery.bind(3, stageDescription);
                                     stageQuery.exec();
                                 } catch (const std::exception& e) {
-                                    logger::warn("Skipping invalid stage key or description for quest {}: {}", questID, e.what());
+                                    logger::warn("Skipping invalid stage data for quest {}: {}", questID, e.what());
                                 }
                             }
                         }
 
-                        // Process objectives for the quest
+                        // Process objectives
                         if (questData.contains("objectives") && questData["objectives"].is_object()) {
                             for (const auto& [objectiveKey, objectiveDesc]: questData["objectives"].items()) {
                                 try {
                                     int objective = std::stoi(objectiveKey);
                                     std::string objectiveDescription = objectiveDesc.is_null() ? "" : objectiveDesc.get<std::string>();
 
-                                    // Insert or update objective description if it is null
                                     SQLite::Statement objectiveQuery(db, R"(
                                         INSERT INTO objectives (quest_eid, objective, description)
                                         VALUES (?, ?, ?)
                                         ON CONFLICT(quest_eid, objective) DO UPDATE SET
-                                            description = CASE WHEN description IS NULL THEN excluded.description ELSE description END
+                                            description = excluded.description
                                     )");
                                     objectiveQuery.bind(1, questID);
                                     objectiveQuery.bind(2, objective);
                                     objectiveQuery.bind(3, objectiveDescription);
                                     objectiveQuery.exec();
                                 } catch (const std::exception& e) {
-                                    logger::warn("Skipping invalid objective key or description for quest {}: {}", questID, e.what());
+                                    logger::warn("Skipping invalid objective data for quest {}: {}", questID, e.what());
                                 }
                             }
                         }
@@ -521,4 +754,80 @@ namespace plugin {
             }
         });
     }
-}  // namespace plugin
+
+    /**
+     * @brief Adds a placeholder entry for a cell in the database.
+     *
+     * @param mod_name The name of the mod.
+     * @param form_id The form ID of the cell.
+     */
+    // MARK: - AddPlaceholderCell
+    void AddPlaceholderCell(const std::string& mod_name, const std::string& form_id) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+            SQLite::Statement query(db, R"(
+                INSERT OR IGNORE INTO description_cell (mod_name, form_id, name, description)
+                VALUES (?, ?, NULL, NULL)
+            )");
+            query.bind(1, mod_name);
+            query.bind(2, form_id);
+            query.exec();
+
+            logger::info("Added placeholder cell entry: mod_name = {}, form_id = {}", mod_name, form_id);
+        } catch (const std::exception& e) {
+            logger::error("Failed to add placeholder cell entry: {}. Error: {}", form_id, e.what());
+        }
+    }
+
+    /**
+     * @brief Adds a placeholder entry for a location in the database.
+     *
+     * @param mod_name The name of the mod.
+     * @param editor_id The editor ID of the location.
+     */
+    // MARK: - AddPlaceholderLocation
+    void AddPlaceholderLocation(const std::string& mod_name, const std::string& editor_id) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+            SQLite::Statement query(db, R"(
+                INSERT OR IGNORE INTO description_location (mod_name, editor_id, name, description)
+                VALUES (?, ?, NULL, NULL)
+            )");
+            query.bind(1, mod_name);
+            query.bind(2, editor_id);
+            query.exec();
+
+            logger::info("Added placeholder location entry: mod_name = {}, editor_id = {}", mod_name, editor_id);
+        } catch (const std::exception& e) {
+            logger::error("Failed to add placeholder location entry: {}. Error: {}", editor_id, e.what());
+        }
+    }
+
+    /**
+     * @brief Adds a placeholder entry for a worldspace in the database.
+     *
+     * @param mod_name The name of the mod.
+     * @param editor_id The editor ID of the worldspace.
+     */
+    // MARK: - AddPlaceholderWorldspace
+    void AddPlaceholderWorldspace(const std::string& mod_name, const std::string& editor_id) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+            SQLite::Statement query(db, R"(
+                INSERT OR IGNORE INTO description_worldspace (mod_name, editor_id, name, description)
+                VALUES (?, ?, NULL, NULL)
+            )");
+            query.bind(1, mod_name);
+            query.bind(2, editor_id);
+            query.exec();
+
+            logger::info("Added placeholder worldspace entry: mod_name = {}, editor_id = {}", mod_name, editor_id);
+        } catch (const std::exception& e) {
+            logger::error("Failed to add placeholder worldspace entry: {}. Error: {}", editor_id, e.what());
+        }
+    }
+
+}  // namespace plugin::DatabaseFunctions

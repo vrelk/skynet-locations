@@ -1,6 +1,7 @@
 #include "LookupHelpers.h"
 #include "RE/Skyrim.h"
 #include "SKSE/SKSE.h"
+#include "VrelkUtil.h"
 
 namespace plugin::LookupHelpers {
     /**
@@ -73,39 +74,39 @@ namespace plugin::LookupHelpers {
      * @note Logs warnings if the actor, parent cell, or worldspace is null, or if the worldspace lacks an editor ID.
      */
     // MARK: - GetActorWorldspaceData
-    FormResult GetActorWorldspaceData(RE::Actor* actor) {
-        if (!actor) {
-            SKSE::log::warn("[LookupHelpers::GetActorWorldspaceData] Actor is null.");
-            return {.isError = true, .errorMessage = "Actor is null."};
-        }
-
-        // Get the parent cell of the actor
-        auto* cell = actor->GetParentCell();
-        if (!cell) {
-            SKSE::log::warn("[LookupHelpers::GetActorWorldspaceData] Actor has no parent cell.");
-            return {.isError = true, .errorMessage = "Actor has no parent cell."};
-        }
-
-        // Get the worldspace from the cell
-        auto* worldspace = cell->GetWorldSpace();
-        if (!worldspace) {
-            SKSE::log::warn("[LookupHelpers::GetActorWorldspaceData] Cell has no associated worldspace.");
-            return {.isError = true, .errorMessage = "Cell has no associated worldspace."};
-        }
-
-        // Get the editor ID of the worldspace
-        auto editorID = worldspace->GetFormEditorID();
-        if (!editorID || editorID.empty()) {
-            SKSE::log::warn("[LookupHelpers::GetActorWorldspaceData] Worldspace has no editor ID.");
-        }
-
-        return {.isError = false,
-                .errorMessage = "",
-                .formID = VrelkUtil::IntToString(worldspace->GetFormID()),
-                .editorID = editorID,
-                .name = worldspace->GetName() ? worldspace->GetName() : "",
-                .sourceMod = GetFormModName(worldspace, false)};
-    }
+    //    FormResult GetActorWorldspaceData(RE::Actor* actor) {
+    //        if (!actor) {
+    //            SKSE::log::warn("[LookupHelpers::GetActorWorldspaceData] Actor is null.");
+    //            return {.isError = true, .errorMessage = "Actor is null."};
+    //        }
+    //
+    //        // Get the parent cell of the actor
+    //        auto* cell = actor->GetParentCell();
+    //        if (!cell) {
+    //            SKSE::log::warn("[LookupHelpers::GetActorWorldspaceData] Actor has no parent cell.");
+    //            return {.isError = true, .errorMessage = "Actor has no parent cell."};
+    //        }
+    //
+    //        // Explicitly cast actor to RE::TESObjectREFR to access GetWorldSpace
+    //        auto* worldspace = static_cast<RE::TESObjectREFR*>(actor)->GetWorldSpace();
+    //        //if (!worldspace) {
+    //        //    SKSE::log::warn("[LookupHelpers::GetActorWorldspaceData] Cell has no associated worldspace.");
+    //        //    return {.isError = true, .errorMessage = "Cell has no associated worldspace."};
+    //        //}
+    //
+    //        // Get the editor ID of the worldspace
+    //        auto editorID = worldspace->GetFormEditorID();
+    //        if (!editorID || editorID.empty()) {
+    //            SKSE::log::warn("[LookupHelpers::GetActorWorldspaceData] Worldspace has no editor ID.");
+    //        }
+    //
+    //        return {.isError = false,
+    //                .errorMessage = "",
+    //                .formID = VrelkUtil::IntToString(worldspace->GetFormID()),
+    //                .editorID = editorID,
+    //                .name = worldspace->GetName() ? worldspace->GetName() : "",
+    //                .sourceMod = GetFormModName(worldspace, false)};
+    //    }
 
     /**
      * @brief Retrieves the name of the mod file associated with the given form.
@@ -125,13 +126,14 @@ namespace plugin::LookupHelpers {
     std::string GetFormModName(const RE::TESForm* form, bool lastModified) {
         if (!form) {
             logger::warn("GetFormModName called with null form");
+            return "";  // Return an empty string if the form is null
         }
 
         if (const auto file = lastModified ? form->GetDescriptionOwnerFile() : form->GetFile(0)) {
-            return file->GetFilename();
+            return std::string(file->GetFilename());  // Convert std::string_view to std::string
         }
 
-        return "";
+        return "";  // Return an empty string if no file is found
     }
 
     /**
@@ -171,9 +173,9 @@ namespace plugin::LookupHelpers {
             return {.isError = true, .errorMessage = "Cell has no associated location."};
         }
 
-        // Get the editor ID of the location
-        auto editorID = location->GetFormEditorID();
-        if (!editorID || editorID.empty()) {
+        const char* editorIDRaw = location->GetFormEditorID();
+        std::string editorID = editorIDRaw ? std::string(editorIDRaw) : "";  // Convert to std::string and handle nullptr
+        if (editorID.empty()) {
             SKSE::log::warn("[LookupHelpers::GetActorLocationData] Location has no editor ID.");
         }
 
@@ -216,8 +218,9 @@ namespace plugin::LookupHelpers {
         }
 
         // Get the editor ID of the Cell
-        auto editorID = cell->GetFormEditorID();
-        if (!editorID || editorID.empty()) {
+        const char* editorIDRaw = cell->GetFormEditorID();
+        std::string editorID = editorIDRaw ? std::string(editorIDRaw) : "";  // Convert to std::string and handle nullptr
+        if (editorID.empty()) {
             SKSE::log::warn("[LookupHelpers::GetActorLocationData] Cell has no editor ID.");
         }
 
@@ -225,7 +228,7 @@ namespace plugin::LookupHelpers {
                 .errorMessage = "",
                 .formID = VrelkUtil::IntToString(cell->GetFormID()),
                 .editorID = editorID,
-                .name = cell->GetName() ? cell->GetName() : "",
-                .sourceMod = GetFormModName(location, false)};
+                .name = cell->GetName() ? std::string(cell->GetName()) : "",  // Convert std::string_view to std::string
+                .sourceMod = GetFormModName(cell, false)};
     }
 }  // namespace plugin::LookupHelpers

@@ -1,0 +1,63 @@
+#include "ConsoleCommands.h"
+#include "DatabaseFunctions.h"
+#include "VrelkUtil.h"
+#include "DataTypes.h"
+
+namespace plugin::ConsoleCommands {
+    using CommandInfo = plugin::DataTypes::CommandInfo;
+
+    void RegisterSimpleCommand() {
+        static CommandInfo cmd;
+        cmd.longName = "MyCmd";
+        cmd.shortName = "";
+        cmd.opcode = 0xFEC0;  // Arbitrary unused opcode (avoid collisions)
+        cmd.helpText = "Simple no-arg test command";
+        cmd.needsParent = false;
+        cmd.isRefRequired = false;
+        cmd.paramInfo = nullptr;
+        cmd.numParams = 0;
+        cmd.execute = MyConsoleCommand;
+        cmd.parse = nullptr;
+        cmd.eval = nullptr;
+        cmd.flags = 0;
+
+        // Access the script engine commands directly
+        auto* scriptCommands = RE::ScriptFunction::commands;
+        if (scriptCommands) {
+            scriptCommands->emplace_back(reinterpret_cast<RE::Script::ScriptFunction*>(&cmd));
+            SKSE::log::info("Registered console command: MyCmd");
+        } else {
+            SKSE::log::error("Failed to register console command: Script commands are unavailable.");
+        }
+    }
+
+    void MyConsoleCommand(void*, void*, RE::TESObjectREFR*, RE::TESObjectREFR*, RE::Script*, RE::ScriptLocals*, double& result, uint32_t&) {
+        // Get the player object
+        auto* player = RE::PlayerCharacter::GetSingleton();
+        if (player) {
+            // Get the parent cell of the actor
+            auto* cell = player->GetParentCell();
+            if (!cell) {
+                RE::ConsoleLog::GetSingleton()->Print("Player has no parent cell.");
+                return;
+            }
+            auto cellInfo = plugin::DatabaseFunctions::GetCellDescription(VrelkUtil::IntToString(cell->GetFormID()));
+
+            auto* location = cell->GetLocation();
+            std::string locationEID;
+            if (location) {
+                locationEID = location->GetFormEditorID();
+            } else {
+                RE::ConsoleLog::GetSingleton()->Print("Cell has no associated location.");
+            }
+
+            //auto* worldspace = static_cast<RE::TESObjectREFR*>(player)->GetWorldSpace();
+            //std::string worldspaceEID;
+            //if (worldspace) {
+            //    worldspaceEID = worldspace->GetFormEditorID();
+            //} else {
+            //    RE::ConsoleLog::GetSingleton()->Print("Cell has no associated worldspace.");
+            //}
+        }
+    }
+}
