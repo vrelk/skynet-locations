@@ -29,4 +29,24 @@ namespace plugin::DataTypes {
             uint32_t flags;
     };
 
+    struct ActorLocation {
+            std::string cellFormID;
+            std::string cellEditorID;
+            std::string cellName;
+
+            std::string worldSpaceFormID;
+            std::string worldSpaceEditorID;
+            std::string worldSpaceName;
+
+            std::string locationFormID;
+            std::string locationEditorID;
+            std::string locationName;
+
+            float x;
+            float y;
+            float z;
+
+            std::string ToJSON() const;
+    };
+
 }  // namespace plugin::DataTypes

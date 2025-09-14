@@ -7,13 +7,12 @@ namespace plugin {
 
         // Install the quest stage hook
         plugin::QuestHooks::InstallQuestStageHook();
+        plugin::QuestHooks::InstallObjectiveCompletedHook();
     }
 
     void Hooks::quitGame() {
         logger::info("Game quitting");
     }
 }  // namespace plugin
-
-
 
 // https://github.com/ryobg/sse-hooks

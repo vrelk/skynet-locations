@@ -10,6 +10,9 @@ set(PROJECT_LONG_NAME "Template CommonLibSSE-NG")
 set(PROJECT_DESCRIPTION ${PROJECT_LONG_NAME})
 set(PROJECT_COPYRIGHT "Copyright")
 
+# disable the warnings as errors for MSVC
+add_compile_options(/WX-) # disables warnings as errors for MSVC
+
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 include(GNUInstallDirs)
 include(addpluginsources)
@@ -35,6 +38,10 @@ target_link_libraries(VrelkHttpClient PRIVATE cpr::cpr)
 # Find and link SQLite3 library
 find_package(SQLiteCpp CONFIG REQUIRED)
 target_link_libraries(VrelkHttpClient PRIVATE SQLiteCpp)
+
+# Configure Crow
+find_package(Crow)
+target_link_libraries(VrelkHttpClient PUBLIC Crow::Crow)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE 
     USER_AGENT_NAME="${PROJECT_NAME}" 

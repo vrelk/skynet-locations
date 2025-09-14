@@ -2,6 +2,7 @@
 #include "HTTPClient.h"
 #include "DatabaseFunctions.h"
 #include "VrelkUtil.h"
+#include "SkyrimHelpers.h"
 
 namespace plugin::PapyrusFunctions {
 
@@ -65,4 +66,5 @@ namespace plugin::PapyrusFunctions {
     RE::BSFixedString GetSceneDescription(RE::StaticFunctionTag*, std::string scene_eid, int phase, bool exactMatch) {
         return plugin::DatabaseFunctions::GetSceneDescription(scene_eid, phase, exactMatch);
     }
+
 }  // namespace plugin::PapyrusFunctions

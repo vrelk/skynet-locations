@@ -18,7 +18,8 @@
             "ssl"
           ]
         },
-        "sqlitecpp"
+        "sqlitecpp",
+        "crow"
       ]
     }
   },

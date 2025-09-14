@@ -13,6 +13,7 @@ using namespace SKSE::stl;
 #include "HTTPClient.h"
 #include "VrelkUtil.h"
 #include "PapyrusFunctions.h"
+#include "HTTPServer.h"
 
 namespace plugin {
     std::optional<std::filesystem::path> getLogDirectory() {
@@ -100,6 +101,10 @@ extern "C" DLLEXPORT bool SKSEPlugin_Load(const LoadInterface* skse) {
     }
 
     loadJContainers();
+
+    // Start HTTP server in a separate thread.
+    std::thread([]() { plugin::HTTPServer::startServer(); }).detach();
+    logger::info("HTTP server started on port 8880.");
 
     // Register our Papyrus functions.
     if (!papyrus->Register(plugin::PapyrusFunctions::RegisterFunctions)) {
