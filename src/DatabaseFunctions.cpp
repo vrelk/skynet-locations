@@ -5,6 +5,8 @@
 #include <future>  // Required for async operations
 #include "JSON.hpp"
 #include "DataTypes.h"
+#include "LookupHelpers.h"
+#include <format>
 
 /*
 {
@@ -247,6 +249,40 @@ namespace plugin::DatabaseFunctions {
                         scene_eid,
                         phase
                     )
+                );
+            )");
+
+            db.exec(R"(
+                CREATE TABLE birthdays (
+                    actor_id            PRIMARY KEY
+                                        NOT NULL
+                                        COLLATE NOCASE
+                                        CHECK (actor_id LIKE '0x%' AND
+                                                LENGTH(actor_id) BETWEEN 3 AND 10),
+                    actor_name TEXT,
+                    month      INTEGER (2) CHECK (month BETWEEN 1 AND 12) 
+                                        NOT NULL,
+                    day        INTEGER (2) CHECK (day BETWEEN 1 AND 31) 
+                                        NOT NULL,
+                    year       INTEGER (3) CHECK (year > 0) 
+                );
+            )");
+
+            db.exec(R"(
+                CREATE TABLE custom_slaves (
+                    actor_id    TEXT (8)    PRIMARY KEY
+                                            COLLATE NOCASE
+                                            NOT NULL
+                                            CHECK (actor_id LIKE '0x%' AND
+                                                LENGTH(actor_id) BETWEEN 3 AND 10),
+                    actor_name  TEXT        NOT NULL,
+                    is_slave    INTEGER (1) CHECK (actor_id IN (0, 1) ) 
+                                            NOT NULL
+                                            DEFAULT (0),
+                    collar_text TEXT        DEFAULT ('Property Of {{owner.name}}'),
+                    owner_id    TEXT (8)    DEFAULT ('0x14') 
+                                            CHECK (owner_id LIKE '0x%' AND
+                                                LENGTH(owner_id) BETWEEN 3 AND 10) 
                 );
             )");
 
@@ -762,16 +798,21 @@ namespace plugin::DatabaseFunctions {
      * @param form_id The form ID of the cell.
      */
     // MARK: - AddPlaceholderCell
-    void AddPlaceholderCell(const std::string& mod_name, const std::string& form_id) {
+    void AddPlaceholderCell(const std::string& mod_name, const std::string& form_id, const std::string& name) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
             SQLite::Statement query(db, R"(
                 INSERT OR IGNORE INTO description_cell (mod_name, form_id, name, description)
-                VALUES (?, ?, NULL, NULL)
+                VALUES (?, ?, ?, NULL)
             )");
             query.bind(1, mod_name);
             query.bind(2, form_id);
+            if (name.empty()) {
+                query.bind(3, nullptr);
+            } else {
+                query.bind(3, name);
+            }
             query.exec();
 
             logger::info("Added placeholder cell entry: mod_name = {}, form_id = {}", mod_name, form_id);
@@ -787,16 +828,21 @@ namespace plugin::DatabaseFunctions {
      * @param editor_id The editor ID of the location.
      */
     // MARK: - AddPlaceholderLocation
-    void AddPlaceholderLocation(const std::string& mod_name, const std::string& editor_id) {
+    void AddPlaceholderLocation(const std::string& mod_name, const std::string& editor_id, const std::string& name) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
             SQLite::Statement query(db, R"(
                 INSERT OR IGNORE INTO description_location (mod_name, editor_id, name, description)
-                VALUES (?, ?, NULL, NULL)
+                VALUES (?, ?, ?, NULL)
             )");
             query.bind(1, mod_name);
             query.bind(2, editor_id);
+            if (name.empty()) {
+                query.bind(3, nullptr);
+            } else {
+                query.bind(3, name);
+            }
             query.exec();
 
             logger::info("Added placeholder location entry: mod_name = {}, editor_id = {}", mod_name, editor_id);
@@ -812,21 +858,104 @@ namespace plugin::DatabaseFunctions {
      * @param editor_id The editor ID of the worldspace.
      */
     // MARK: - AddPlaceholderWorldspace
-    void AddPlaceholderWorldspace(const std::string& mod_name, const std::string& editor_id) {
+    void AddPlaceholderWorldspace(const std::string& mod_name, const std::string& editor_id, const std::string& name) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
             SQLite::Statement query(db, R"(
                 INSERT OR IGNORE INTO description_worldspace (mod_name, editor_id, name, description)
-                VALUES (?, ?, NULL, NULL)
+                VALUES (?, ?, ?, NULL)
             )");
             query.bind(1, mod_name);
             query.bind(2, editor_id);
+            if (name.empty()) {
+                query.bind(3, nullptr);
+            } else {
+                query.bind(3, name);
+            }
+
             query.exec();
 
             logger::info("Added placeholder worldspace entry: mod_name = {}, editor_id = {}", mod_name, editor_id);
         } catch (const std::exception& e) {
             logger::error("Failed to add placeholder worldspace entry: {}. Error: {}", editor_id, e.what());
+        }
+    }
+
+    // Helper function to get ordinal suffix for a day
+    static std::string GetOrdinalSuffix(int number) {
+        int tens = number % 100;
+        if (tens >= 11 && tens <= 13)
+            return "th";
+        switch (number % 10) {
+            case 1:
+                return "st";
+            case 2:
+                return "nd";
+            case 3:
+                return "rd";
+            default:
+                return "th";
+        }
+    }
+
+    /**
+     * @brief Retrieves the birthday of an actor by form ID and returns a formatted string.
+     *
+     * @param actor_id The form ID of the actor as a string.
+     * @return std::string Formatted birthday string, or empty if not found.
+     */
+    // MARK: - GetActorBirthdayString
+    std::string GetActorBirthdayString(const std::string& actor_id, bool thirdPerson) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READONLY);
+
+            SQLite::Statement query(db, R"(
+                SELECT actor_name, month, day, year
+                FROM birthdays
+                WHERE actor_id = ?
+                LIMIT 1;
+            )");
+            query.bind(1, actor_id);
+
+            if (query.executeStep()) {
+                std::string actorName = query.getColumn(0).isNull() ? "" : query.getColumn(0).getString();
+                int month = query.getColumn(1).getInt();
+                int day = query.getColumn(2).getInt();
+                int year = query.getColumn(3).isNull() ? 0 : query.getColumn(3).getInt();
+
+                // Skyrim month names
+                static const char* monthNames[12] = {"Morning Star", "Sun’s Dawn", "First Seed",   "Rain’s Hand",
+                                                     "Second Seed",  "Mid Year",   "Sun’s Height", "Last Seed",
+                                                     "Hearthfire",   "Frostfall",  "Sun’s Dusk",   "Evening Star"};
+
+                std::string output = std::format("- Date of Birth: {} of {}, 4E {}", std::to_string(day) + GetOrdinalSuffix(day),
+                                                 monthNames[month - 1], std::to_string(year));
+
+                // Check if today is their birthday
+                int todayMonth = LookupHelpers::GetGlobalIntValueByName("GameMonth");
+                int todayDay = LookupHelpers::GetGlobalIntValueByName("GameDay");
+
+                if (month == todayMonth && day == todayDay && year > 0) {
+                    int age = LookupHelpers::GetGlobalIntValueByName("GameYear") - year;
+                    if (thirdPerson && !actorName.empty()) {
+                        output += std::format(" **Today is {}'s {} birthday!**", actorName, std::to_string(age) + GetOrdinalSuffix(age));
+                    } else {
+                        output += std::format(" **Today is your {} birthday!**", std::to_string(age) + GetOrdinalSuffix(age));
+                    }
+                }
+
+                output += std::format("\n- Current Age: {}",
+                                      std::to_string((year > 0) ? (LookupHelpers::GetGlobalIntValueByName("GameYear") - year) : 0));
+
+                return output;
+            } else {
+                logger::warn("No birthday found for actor_id: {}", actor_id);
+                return "";
+            }
+        } catch (const std::exception& e) {
+            logger::error("Failed to query birthday for actor_id {}: {}", actor_id, e.what());
+            return "";
         }
     }
 

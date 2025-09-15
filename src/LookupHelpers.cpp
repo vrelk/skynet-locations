@@ -31,29 +31,7 @@ namespace plugin::LookupHelpers {
      * The name of the mod file that defines the form (original, not overwrites).
      */
     // MARK: - FormResult
-    struct FormResult {
-            bool isError = false;
-            std::string errorMessage;
-            std::string formID;
-            std::string editorID;
-            std::string name;
-            std::string sourceMod;
-
-            /** @brief Generates a mod key in the format "modName|formID".
-             *
-             * This function constructs a mod key by concatenating the source mod name
-             * and the form ID, separated by a pipe character ("|"). If the form ID is empty,
-             * an empty string is returned.
-             *
-             * @return A string representing the mod key, or an empty string if formID is empty.
-            */
-            std::string ToModKey() const {
-                if (formID.empty()) {
-                    return "";
-                }
-                return sourceMod + "|" + formID;
-            }
-    };
+    // struct FormResult --> In header file
 
     /**
      * @brief Retrieves the editor ID and form ID of the worldspace associated with the given actor.
@@ -230,6 +208,31 @@ namespace plugin::LookupHelpers {
                 .editorID = editorID,
                 .name = cell->GetName() ? std::string(cell->GetName()) : "",  // Convert std::string_view to std::string
                 .sourceMod = GetFormModName(cell, false)};
+    }
+
+    float GetGlobalValueByName(const std::string& globalName) {
+        auto dataHandler = RE::TESDataHandler::GetSingleton();
+        if (!dataHandler) {
+            return 0.0f;
+        }
+
+        RE::TESForm* form = RE::TESForm::LookupByEditorID(globalName);
+        if (!form) {
+            logger::error("Global variable '{}' not found!", globalName);
+            return 0.0f;
+        }
+
+        auto global = form->As<RE::TESGlobal>();
+        if (!global) {
+            logger::error("Form '{}' is not a TESGlobal!", globalName);
+            return 0.0f;
+        }
+
+        return global->value;
+    }
+
+    int GetGlobalIntValueByName(const std::string& globalName) {
+        return static_cast<int>(GetGlobalValueByName(globalName));
     }
 
 }  // namespace plugin::LookupHelpers
