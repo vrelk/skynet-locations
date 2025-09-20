@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <json.hpp>  // Include this if you use nlohmann::json in the struct
+#include <json.hpp>  // nlohmann::json
 
 namespace plugin::DataTypes {
     struct LocationLookupResult {
@@ -48,5 +48,48 @@ namespace plugin::DataTypes {
 
             std::string ToJSON() const;
     };
+
+    struct FormResult {
+            bool isError = false;
+            std::string errorMessage;
+
+            std::string formID;
+            std::string editorID;
+            std::string name;
+            std::string sourceMod;
+
+            std::string ToJSON() const {
+                nlohmann::json j = {{"isError", isError}, {"errorMessage", errorMessage}, {"formID", formID}, {"editorID", editorID},
+                                    {"name", name},       {"sourceMod", sourceMod}};
+                return j.dump();
+            }
+    };
+
+    // nlohmann::json support
+    inline void to_json(nlohmann::json& j, const LocationLookupResult& v) {
+        j = nlohmann::json{{"found", v.found}, {"name", v.name}, {"description", v.description}};
+    }
+
+    inline void to_json(nlohmann::json& j, const ActorLocation& v) {
+        j = nlohmann::json{{"cellFormID", v.cellFormID},
+                           {"cellEditorID", v.cellEditorID},
+                           {"cellName", v.cellName},
+                           {"worldSpaceFormID", v.worldSpaceFormID},
+                           {"worldSpaceEditorID", v.worldSpaceEditorID},
+                           {"worldSpaceName", v.worldSpaceName},
+                           {"locationFormID", v.locationFormID},
+                           {"locationEditorID", v.locationEditorID},
+                           {"locationName", v.locationName},
+                           {"x", v.x},
+                           {"y", v.y},
+                           {"z", v.z}};
+    }
+
+    inline void to_json(nlohmann::json& j, const FormResult& v) {
+        j = nlohmann::json{{"isError", v.isError}, {"errorMessage", v.errorMessage}, {"formID", v.formID}, {"editorID", v.editorID},
+                           {"name", v.name},       {"sourceMod", v.sourceMod}};
+    }
+
+    // CommandInfo is not trivially serializable due to pointers and function pointers, so skip it unless you need specific fields.
 
 }  // namespace plugin::DataTypes

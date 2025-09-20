@@ -1,0 +1,52 @@
+#include "RE/Skyrim.h"
+#include "SKSE/API.h"
+#include "REL/Relocation.h"
+#include "SKSE/Trampoline.h"
+#include <format>
+#include "VrelkUtil.h"
+#include "LookupHelpers.h"
+#include "QuestHooks.h"
+
+namespace plugin {
+
+    std::string getObjectiveStateString(RE::QUEST_OBJECTIVE_STATE state) {
+        switch (state) {
+            case RE::QUEST_OBJECTIVE_STATE::kDormant:
+                return "Dormant";
+            case RE::QUEST_OBJECTIVE_STATE::kDisplayed:
+                return "Displayed";
+            case RE::QUEST_OBJECTIVE_STATE::kCompleted:
+                return "Completed";
+            case RE::QUEST_OBJECTIVE_STATE::kCompletedDisplayed:
+                return "CompletedDisplayed";
+            case RE::QUEST_OBJECTIVE_STATE::kFailed:
+                return "Failed";
+            case RE::QUEST_OBJECTIVE_STATE::kFailedDisplayed:
+                return "FailedDisplayed";
+            default:
+                return "Unknown";
+        }
+    }
+
+    EventProcessor& EventProcessor::GetSingleton() {
+        static EventProcessor singleton;
+        return singleton;
+    }
+
+    RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::TESQuestStageEvent* event,
+                                                          RE::BSTEventSource<RE::TESQuestStageEvent>*) {
+        std::string modName = LookupHelpers::GetModNameFromFormID(event->formID, false);
+        logger::info("Mod: {} :: Quest: {} :: Stage: {}", modName, VrelkUtil::IntToString(event->formID), event->stage);
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+    RE::BSEventNotifyControl EventProcessor::ProcessEvent(const RE::ObjectiveState::Event* event,
+                                                          RE::BSTEventSource<RE::ObjectiveState::Event>*) {
+        std::string modName = LookupHelpers::GetModNameFromFormID(event->objective->ownerQuest->GetFormID(), false);
+        logger::info("Mod: {} :: Quest: {} :: Objective: {} :: Old State: {} :: New State : {}", modName,
+                     VrelkUtil::IntToString(event->objective->ownerQuest->GetFormID()), event->objective->index,
+                     getObjectiveStateString(event->oldState), getObjectiveStateString(event->newState));
+        return RE::BSEventNotifyControl::kContinue;
+    }
+
+}  // namespace plugin

@@ -34,6 +34,7 @@ namespace plugin::PapyrusFunctions {
         vm->RegisterFunction("insertWorldspacePlaceholder", "VrelkHttpClient", InsertWorldspacePlaceholder);
 
         vm->RegisterFunction("getActorBirthday", "VrelkHttpClient", GetActorBirthday);
+        vm->RegisterFunction("getSlaveInfo", "VrelkHttpClient", GetSlaveInfo);
 
         return true;
     }
@@ -43,16 +44,26 @@ namespace plugin::PapyrusFunctions {
             return RE::BSFixedString("{\"location\":\"\",\"description\":\"\"}");
         }
 
+        auto cell = LookupHelpers::GetActorLocationData(actor);
+        if (cell.isError) {
+            return RE::BSFixedString("{\"location\":\"\",\"description\":\"\"}");
+        }
+
+        auto resultCell = plugin::DatabaseFunctions::GetLocationDescription(cell.formID);
+        if (resultCell.found) {
+            nlohmann::json jsonResponse = {{"location", resultCell.name}, {"description", resultCell.description}};
+            return RE::BSFixedString(jsonResponse.dump().c_str());
+        }
+
         auto location = LookupHelpers::GetActorLocationData(actor);
         if (location.isError) {
             return RE::BSFixedString("{\"location\":\"\",\"description\":\"\"}");
         }
 
-        auto result = plugin::DatabaseFunctions::GetLocationDescription(location.editorID);
-        if (result.found) {
-            nlohmann::json jsonResponse = {{"location", location.name}, {"description", result.description}};
+        auto resultLoc = plugin::DatabaseFunctions::GetLocationDescription(location.editorID);
+        if (resultLoc.found) {
+            nlohmann::json jsonResponse = {{"location", location.name}, {"description", resultLoc.description}};
             return RE::BSFixedString(jsonResponse.dump().c_str());
-            //return RE::BSFixedString(result.description.c_str());
         } else {
             nlohmann::json jsonResponse = {{"location", location.name}, {"description", ""}};
             return RE::BSFixedString(jsonResponse.dump().c_str());
@@ -73,9 +84,9 @@ namespace plugin::PapyrusFunctions {
         }
     }
 
-    void InsertCellPlaceholder(RE::StaticFunctionTag*, const std::string mod_name, int form_id, std::string name) {
+    void InsertCellPlaceholder(RE::StaticFunctionTag*, const std::string mod_name, int form_id, std::string name, std::string notes) {
         std::string form_id_str = VrelkUtil::IntToString(form_id);
-        plugin::DatabaseFunctions::AddPlaceholderCell(mod_name, form_id_str, name);
+        plugin::DatabaseFunctions::AddPlaceholderCell(mod_name, form_id_str, name, notes);
         std::string message = std::format("Inserted placeholder cell: mod_name = {}, form_id = {}", mod_name, form_id_str);
         RE::ConsoleLog::GetSingleton()->Print(message.c_str());
     }
@@ -110,26 +121,74 @@ namespace plugin::PapyrusFunctions {
 
     RE::BSFixedString GetActorBirthday(RE::StaticFunctionTag*, RE::Actor* actor, bool thirdPerson) {
         if (!actor) {
-            return RE::BSFixedString("");
+            return RE::BSFixedString("{\"dob\":\"\",\"age\":\"\",\"birthday_str\":\"\"}");
         }
 
         std::string actor_id = VrelkUtil::IntToString(actor->GetFormID(), true);
         if (actor_id.empty()) {
-            return RE::BSFixedString("");
+            return RE::BSFixedString("{\"dob\":\"\",\"age\":\"\",\"birthday_str\":\"\"}");
         }
 
-        std::string birthday = plugin::DatabaseFunctions::GetActorBirthdayString(actor_id, thirdPerson);
+        std::string sourceMod = LookupHelpers::GetFormModName(actor, false);
+
+        std::string birthday = plugin::DatabaseFunctions::GetActorBirthdayString(sourceMod, actor_id, thirdPerson);
         if (birthday.empty()) {
-            std::string actor_base_id = VrelkUtil::IntToString(actor->GetActorBase()->GetFormID(), true);
-            if (actor_base_id.empty()) {
-                return RE::BSFixedString("");
+            actor_id = VrelkUtil::IntToString(actor->GetActorBase()->GetFormID(), true);
+            sourceMod = LookupHelpers::GetFormModName(actor->GetActorBase(), false);
+            if (actor_id.empty()) {
+                return RE::BSFixedString("{\"dob\":\"\",\"age\":\"\",\"birthday_str\":\"\"}");
             }
-            birthday = plugin::DatabaseFunctions::GetActorBirthdayString(actor_base_id, thirdPerson);
+            birthday = plugin::DatabaseFunctions::GetActorBirthdayString(sourceMod, actor_id, thirdPerson);
             if (birthday.empty()) {
-                return RE::BSFixedString("");
+                return RE::BSFixedString("{\"dob\":\"\",\"age\":\"\",\"birthday_str\":\"\"}");
             }
         }
         return RE::BSFixedString(birthday.c_str());
+    }
+
+    RE::BSFixedString GetSlaveInfo(RE::StaticFunctionTag*, RE::Actor* actor) {
+        if (!actor) {
+            return RE::BSFixedString("{}");
+        }
+
+        std::string actor_id = VrelkUtil::IntToString(actor->GetFormID(), true);
+        if (actor_id.empty()) {
+            return RE::BSFixedString("{}");
+        }
+
+        std::string sourceMod = LookupHelpers::GetFormModName(actor, false);
+
+        nlohmann::json slaveInfo = plugin::DatabaseFunctions::GetCustomSlaveEntry(sourceMod, actor_id);
+        if (slaveInfo.empty()) {
+            return RE::BSFixedString("{}");
+        }
+
+        std::string ownerMod = slaveInfo.value("owner_mod", "");
+        std::string ownerId = slaveInfo.value("owner_id", "");
+
+        RE::Actor* ownerActor = nullptr;
+
+        if (!ownerMod.empty() && !ownerId.empty()) {
+            ownerActor = plugin::LookupHelpers::GetActorPtrByModAndFormIDString(ownerMod, ownerId);
+        }
+
+        slaveInfo["actor_name"] = SkyrimHelpers::GetActorDisplayName(actor, "Slave");
+
+        if (slaveInfo.contains("collar_text")) {
+            std::string collarText = slaveInfo["collar_text"];
+            size_t pos = collarText.find("{{owner.name}}");
+            if (pos != std::string::npos) {
+                if (ownerActor) {
+                    std::string ownerName = SkyrimHelpers::GetActorDisplayName(ownerActor, "Mistress");
+                    collarText.replace(pos, std::string("{{owner.name}}").length(), ownerName);
+                } else {
+                    collarText.replace(pos, std::string("{{owner.name}}").length(), "Mistress");
+                }
+            }
+            slaveInfo["collar_text"] = collarText;
+        }
+
+        return RE::BSFixedString(slaveInfo.dump().c_str());
     }
 
 }  // namespace plugin::PapyrusFunctions

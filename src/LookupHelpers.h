@@ -28,8 +28,10 @@ namespace plugin::LookupHelpers {
     };
     //FormResult GetActorWorldspaceData(RE::Actor* actor);
     std::string GetFormModName(const RE::TESForm* form, bool lastModified = false);
+    std::string GetModNameFromFormID(uint32_t formID, bool lastModified = false);
     FormResult GetActorLocationData(RE::Actor* actor);
     FormResult GetActorCellData(RE::Actor* actor);
     float GetGlobalValueByName(const std::string& globalName);
     int GetGlobalIntValueByName(const std::string& globalName);
+    RE::Actor* GetActorPtrByModAndFormIDString(const std::string& modName, const std::string& formIDStr);
 }  // namespace plugin::LookupHelpers

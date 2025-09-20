@@ -9,6 +9,7 @@ set(PROJECT_FRIENDLY_NAME ${PROJECT_NAME})
 set(PROJECT_LONG_NAME "Template CommonLibSSE-NG")
 set(PROJECT_DESCRIPTION ${PROJECT_LONG_NAME})
 set(PROJECT_COPYRIGHT "Copyright")
+set(PROJECT_AUTHOR "Controller Vrelk")
 
 # disable the warnings as errors for MSVC
 add_compile_options(/WX-) # disables warnings as errors for MSVC
@@ -33,15 +34,15 @@ endif()
 
 # Find and link CPR library
 find_package(cpr CONFIG REQUIRED)
-target_link_libraries(VrelkHttpClient PRIVATE cpr::cpr)
+target_link_libraries(${PROJECT_NAME} PRIVATE cpr::cpr)
 
 # Find and link SQLite3 library
 find_package(SQLiteCpp CONFIG REQUIRED)
-target_link_libraries(VrelkHttpClient PRIVATE SQLiteCpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE SQLiteCpp)
 
 # Configure Crow
 find_package(Crow)
-target_link_libraries(VrelkHttpClient PUBLIC Crow::Crow)
+target_link_libraries(${PROJECT_NAME} PUBLIC Crow::Crow)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE 
     USER_AGENT_NAME="${PROJECT_NAME}" 

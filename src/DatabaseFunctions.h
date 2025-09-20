@@ -20,10 +20,12 @@ namespace plugin::DatabaseFunctions {
     std::future<void> ImportDataFromFileAsync(const std::string& filename);
     std::future<void> ImportDataFromFolderAsync(const std::string& folderPath);
 
-    void AddPlaceholderCell(const std::string& mod_name, const std::string& form_id, const std::string& name = "");
+    void AddPlaceholderCell(const std::string& mod_name, const std::string& form_id, const std::string& name = "",
+                            const std::string& notes = "");
     void AddPlaceholderLocation(const std::string& mod_name, const std::string& editor_id, const std::string& name = "");
     void AddPlaceholderWorldspace(const std::string& mod_name, const std::string& editor_id, const std::string& name = "");
 
     static std::string GetOrdinalSuffix(int number);
-    std::string GetActorBirthdayString(const std::string& actor_id, bool thirdPerson = false);
+    std::string GetActorBirthdayString(const std::string& mod_name, const std::string& actor_id, bool thirdPerson = false);
+    nlohmann::json GetCustomSlaveEntry(const std::string& mod_name, const std::string& actor_id);
 }  // namespace plugin::DatabaseFunctions

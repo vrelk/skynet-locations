@@ -68,17 +68,19 @@ namespace plugin::DatabaseFunctions {
                     // Handle null case
                 }
 
+                // Clear existing load order data
+                db.exec(R"(DELETE FROM load_order;)");
+
                 SQLite::Statement query(db, R"(
                     INSERT OR REPLACE INTO load_order (priority, mod_name, is_light)
                     VALUES (?, ?, ?)
                 )");
 
-                int sequentialIndex = 0;
                 auto& files = dataHandler->files;
 
                 for (auto it = files.begin(); it != files.end(); ++it) {
                     RE::TESFile* mod = *it;
-                    if (!mod) {
+                    if (!mod || mod->GetPartialIndex() == 0xFF) {  // Skip invalid or not loaded
                         continue;
                     }
 
@@ -86,11 +88,13 @@ namespace plugin::DatabaseFunctions {
                     std::string name(nameView);  // Convert to std::string
                     bool isLight = mod->IsLight();
 
-                    query.bind(1, sequentialIndex++);
+                    query.bind(1, mod->GetPartialIndex());
                     query.bind(2, name);
                     query.bind(3, isLight ? 1 : 0);
                     query.exec();
                     query.reset();  // Reset for next iteration
+
+                    logger::info("Updated load order entry: partialIDX = {}, mod_name = {}", mod->GetPartialIndex(), name);
                 }
 
                 logger::info("Load order updated successfully.");
@@ -253,10 +257,9 @@ namespace plugin::DatabaseFunctions {
             )");
 
             db.exec(R"(
-                CREATE TABLE birthdays (
-                    actor_id            PRIMARY KEY
-                                        NOT NULL
-                                        COLLATE NOCASE
+                CREATE TABLE IF NOT EXISTS birthdays (
+                    mod_name   TEXT,
+                    actor_id               NOT NULL
                                         CHECK (actor_id LIKE '0x%' AND
                                                 LENGTH(actor_id) BETWEEN 3 AND 10),
                     actor_name TEXT,
@@ -264,30 +267,36 @@ namespace plugin::DatabaseFunctions {
                                         NOT NULL,
                     day        INTEGER (2) CHECK (day BETWEEN 1 AND 31) 
                                         NOT NULL,
-                    year       INTEGER (3) CHECK (year > 0) 
+                    year       INTEGER (3) CHECK (year > 0),
+                    PRIMARY KEY (
+                        mod_name COLLATE NOCASE,
+                        actor_id COLLATE NOCASE
+                    )
                 );
             )");
 
             db.exec(R"(
-                CREATE TABLE custom_slaves (
-                    actor_id    TEXT (8)    PRIMARY KEY
-                                            COLLATE NOCASE
-                                            NOT NULL
+                CREATE TABLE IF NOT EXISTS custom_slaves (
+                    mod_name    TEXT        NOT NULL,
+                    actor_id    TEXT (8)    NOT NULL
                                             CHECK (actor_id LIKE '0x%' AND
                                                 LENGTH(actor_id) BETWEEN 3 AND 10),
                     actor_name  TEXT        NOT NULL,
-                    is_slave    INTEGER (1) CHECK (actor_id IN (0, 1) ) 
+                    slave_id    INTEGER,
+                    is_slave    INTEGER (1) CHECK (is_slave IN (0, 1) ) 
                                             NOT NULL
                                             DEFAULT (0),
                     collar_text TEXT        DEFAULT ('Property Of {{owner.name}}'),
+                    owner_mod   TEXT        DEFAULT ('Skyrim.esm'),
                     owner_id    TEXT (8)    DEFAULT ('0x14') 
                                             CHECK (owner_id LIKE '0x%' AND
-                                                LENGTH(owner_id) BETWEEN 3 AND 10) 
+                                                LENGTH(owner_id) BETWEEN 3 AND 10),
+                    PRIMARY KEY (
+                        mod_name COLLATE NOCASE,
+                        actor_id COLLATE NOCASE
+                    )
                 );
             )");
-
-            // Clear existing load order data
-            db.exec(R"(DELETE FROM load_order;)");
 
             // Asynchronously update the load order
             auto future = UpdateLoadOrderAsync();
@@ -798,13 +807,13 @@ namespace plugin::DatabaseFunctions {
      * @param form_id The form ID of the cell.
      */
     // MARK: - AddPlaceholderCell
-    void AddPlaceholderCell(const std::string& mod_name, const std::string& form_id, const std::string& name) {
+    void AddPlaceholderCell(const std::string& mod_name, const std::string& form_id, const std::string& name, const std::string& notes) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
 
             SQLite::Statement query(db, R"(
-                INSERT OR IGNORE INTO description_cell (mod_name, form_id, name, description)
-                VALUES (?, ?, ?, NULL)
+                INSERT OR IGNORE INTO description_cell (mod_name, form_id, name, description, notes)
+                VALUES (?, ?, ?, NULL, ?)
             )");
             query.bind(1, mod_name);
             query.bind(2, form_id);
@@ -812,6 +821,12 @@ namespace plugin::DatabaseFunctions {
                 query.bind(3, nullptr);
             } else {
                 query.bind(3, name);
+            }
+
+            if (notes.empty()) {
+                query.bind(4, nullptr);
+            } else {
+                query.bind(4, notes);
             }
             query.exec();
 
@@ -902,60 +917,108 @@ namespace plugin::DatabaseFunctions {
     /**
      * @brief Retrieves the birthday of an actor by form ID and returns a formatted string.
      *
+     * @param mod_name The name of the mod.
      * @param actor_id The form ID of the actor as a string.
+     * @param thirdPerson Whether to format the message in third person.
      * @return std::string Formatted birthday string, or empty if not found.
      */
     // MARK: - GetActorBirthdayString
-    std::string GetActorBirthdayString(const std::string& actor_id, bool thirdPerson) {
+    std::string GetActorBirthdayString(const std::string& mod_name, const std::string& actor_id, bool thirdPerson) {
         try {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READONLY);
 
             SQLite::Statement query(db, R"(
                 SELECT actor_name, month, day, year
                 FROM birthdays
-                WHERE actor_id = ?
+                WHERE mod_name = ? AND actor_id = ?
                 LIMIT 1;
             )");
-            query.bind(1, actor_id);
+            query.bind(1, mod_name);
+            query.bind(2, actor_id);
 
             if (query.executeStep()) {
-                std::string actorName = query.getColumn(0).isNull() ? "" : query.getColumn(0).getString();
                 int month = query.getColumn(1).getInt();
                 int day = query.getColumn(2).getInt();
-                int year = query.getColumn(3).isNull() ? 0 : query.getColumn(3).getInt();
+                int year = query.getColumn(3).getInt();
 
                 // Skyrim month names
                 static const char* monthNames[12] = {"Morning Star", "Sun’s Dawn", "First Seed",   "Rain’s Hand",
                                                      "Second Seed",  "Mid Year",   "Sun’s Height", "Last Seed",
                                                      "Hearthfire",   "Frostfall",  "Sun’s Dusk",   "Evening Star"};
 
-                std::string output = std::format("- Date of Birth: {} of {}, 4E {}", std::to_string(day) + GetOrdinalSuffix(day),
-                                                 monthNames[month - 1], std::to_string(year));
-
+                nlohmann::json result;
+                result["dob"] = std::format("{} of {}, 4E {}", std::to_string(day) + GetOrdinalSuffix(day), monthNames[month - 1],
+                                            std::to_string(year));
+                result["birthday_str"] = "";
+                result["age"] = "";
                 // Check if today is their birthday
-                int todayMonth = LookupHelpers::GetGlobalIntValueByName("GameMonth");
+                int todayMonth = LookupHelpers::GetGlobalIntValueByName("GameMonth") + 1;  // Adjust for 0-based index
                 int todayDay = LookupHelpers::GetGlobalIntValueByName("GameDay");
 
                 if (month == todayMonth && day == todayDay && year > 0) {
                     int age = LookupHelpers::GetGlobalIntValueByName("GameYear") - year;
-                    if (thirdPerson && !actorName.empty()) {
-                        output += std::format(" **Today is {}'s {} birthday!**", actorName, std::to_string(age) + GetOrdinalSuffix(age));
+                    if (thirdPerson) {
+                        result["birthday_str"] =
+                            std::format("**Today is their {} birthday!**", std::to_string(age) + GetOrdinalSuffix(age));
                     } else {
-                        output += std::format(" **Today is your {} birthday!**", std::to_string(age) + GetOrdinalSuffix(age));
+                        result["birthday_str"] = std::format("**Today is your {} birthday!**", std::to_string(age) + GetOrdinalSuffix(age));
                     }
                 }
 
-                output += std::format("\n- Current Age: {}",
-                                      std::to_string((year > 0) ? (LookupHelpers::GetGlobalIntValueByName("GameYear") - year) : 0));
+                if (year > 0) {
+                    result["age"] = std::to_string(LookupHelpers::GetGlobalIntValueByName("GameYear") - year);
+                }
 
-                return output;
+                return result.dump();
             } else {
-                logger::warn("No birthday found for actor_id: {}", actor_id);
+                //logger::warn("No birthday found for actor_id: {} :: {}", mod_name, actor_id);
                 return "";
             }
         } catch (const std::exception& e) {
             logger::error("Failed to query birthday for actor_id {}: {}", actor_id, e.what());
             return "";
+        }
+    }
+
+    /**
+     * @brief Retrieves a row from the custom_slaves table by mod_name and actor_id.
+     *
+     * @param mod_name The name of the mod.
+     * @param actor_id The form ID of the actor.
+     * @return nlohmann::json JSON object containing the row data, or empty if not found.
+     */
+    // MARK: - GetCustomSlaveEntry
+    nlohmann::json GetCustomSlaveEntry(const std::string& mod_name, const std::string& actor_id) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READONLY);
+
+            SQLite::Statement query(db, R"(
+                SELECT mod_name, actor_id, actor_name, slave_id, is_slave, collar_text, owner_mod, owner_id
+                FROM custom_slaves
+                WHERE mod_name = ? AND actor_id = ?
+                LIMIT 1;
+            )");
+            query.bind(1, mod_name);
+            query.bind(2, actor_id);
+
+            if (query.executeStep()) {
+                nlohmann::json result;
+                result["mod_name"] = query.getColumn(0).isNull() ? "" : query.getColumn(0).getString();
+                result["actor_id"] = query.getColumn(1).isNull() ? "" : query.getColumn(1).getString();
+                result["actor_name"] = query.getColumn(2).isNull() ? "" : query.getColumn(2).getString();
+                result["slave_id"] = query.getColumn(3).isNull() ? 0 : query.getColumn(3).getInt();
+                result["is_slave"] = query.getColumn(4).isNull() ? 0 : query.getColumn(4).getInt();
+                result["collar_text"] = query.getColumn(5).isNull() ? "" : query.getColumn(5).getString();
+                result["owner_mod"] = query.getColumn(6).isNull() ? "" : query.getColumn(6).getString();
+                result["owner_id"] = query.getColumn(7).isNull() ? "" : query.getColumn(7).getString();
+                return result;
+            } else {
+                logger::warn("No custom_slave entry found for mod_name: {}, actor_id: {}", mod_name, actor_id);
+                return nlohmann::json{};
+            }
+        } catch (const std::exception& e) {
+            logger::error("Failed to query custom_slaves for actor_id {}: {}", actor_id, e.what());
+            return nlohmann::json{};
         }
     }
 

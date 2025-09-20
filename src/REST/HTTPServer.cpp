@@ -1,15 +1,28 @@
-#include "HTTPServer.h"
-#include "crow.h"
-#include "VrelkUtil.h"
-#include "SkyrimHelpers.h"
+#include "HTTPServer.hpp"
+#include <crow.h>
+#include "../../include/cors.h"  // don't know why, but it refuses to find it in main includes folder from vcpkg
+#include "../VrelkUtil.h"
+#include "../SkyrimHelpers.h"
+#include "../DatabaseFunctions.h"
+#include "../DataTypes.h"
 
-namespace plugin::HTTPServer {
+#include "BirthdayAPI.hpp"
+#include "LocationAPI.hpp"
+
+namespace plugin::REST::HTTPServer {
     using namespace plugin::SkyrimHelpers;
 
     void startServer() {
-        crow::SimpleApp app;
+        crow::App<crow::CORSHandler> app;
 
         CROW_ROUTE(app, "/")([]() { return "Hello, World!"; });
+    https:  //crowcpp.org/1.0/guides/CORS/
+
+        // Register birthday API endpoints
+        plugin::REST::BirthdayAPI::RegisterRoutes(app);
+
+        // Register location API endpoints
+        plugin::REST::LocationAPI::RegisterRoutes(app);
 
         // Serve static HTML file at /player
         CROW_ROUTE(app, "/player").methods("GET"_method)([]() {
@@ -49,6 +62,22 @@ namespace plugin::HTTPServer {
             response["player"]["cell"]["id"] = cell ? VrelkUtil::IntToString(cell->GetFormID()) : "Unknown";
             response["player"]["cell"]["editor_id"] = SkyrimHelpers::GetFormEditorID(cell);
             response["player"]["cell"]["name"] = cell ? cell->GetName() : "Unknown";
+            //response["player"]["cell"]["x"] = cell ? cell->GetCoordinates()->cellX : 0;  //CRASH!
+            //response["player"]["cell"]["y"] = cell ? cell->GetCoordinates()->cellY : 0;  //CRASH!
+
+            if (cell) {
+                std::string formIDStr = VrelkUtil::IntToString(cell->GetFormID());
+                plugin::DataTypes::LocationLookupResult cellDescription = plugin::DatabaseFunctions::GetCellDescription(formIDStr);
+
+                if (cellDescription.found) {
+                    response["player"]["cell"]["custom_name"] = cellDescription.name;
+                    response["player"]["cell"]["description"] = cellDescription.description;
+                } else {
+                    response["player"]["cell"]["custom_name"] = "";
+                    response["player"]["cell"]["description"] = "";
+                }
+            }
+
             //response["player"]["is_interior"] = cell ? cell->IsInterior() : false;
             response["player"]["location"]["id"] =
                 player->GetCurrentLocation() ? VrelkUtil::IntToString(player->GetCurrentLocation()->GetFormID()) : "Unknown";
@@ -64,4 +93,4 @@ namespace plugin::HTTPServer {
         app.bindaddr("127.0.0.1").port(8880).multithreaded().run();
     }
 
-}  // namespace plugin::HTTPServer
+}  // namespace plugin::REST::HTTPServer

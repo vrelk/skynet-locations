@@ -235,4 +235,63 @@ namespace plugin::LookupHelpers {
         return static_cast<int>(GetGlobalValueByName(globalName));
     }
 
+    /**
+     * @brief Retrieves the mod name from an integer form ID.
+     *
+     * @param formID The integer form ID.
+     * @param lastModified If true, returns the last modified file name; otherwise, the original mod.
+     * @return The mod name as a string, or empty if not found.
+     */
+    std::string GetModNameFromFormID(uint32_t formID, bool lastModified) {
+        const RE::TESForm* form = RE::TESForm::LookupByID(formID);
+        if (!form) {
+            logger::warn("GetModNameFromFormID: No form found for ID {:08X}", formID);
+            return "";
+        }
+        return GetFormModName(form, lastModified);
+    }
+
+    /**
+     * @brief Retrieves an RE::Actor* from a mod name and form ID string.
+     *
+     * @param modName The name of the mod (e.g., "Skyrim.esm").
+     * @param formIDStr The form ID as a string (e.g., "0x123ABC" or "123ABC").
+     * @return RE::Actor* pointer if found, nullptr if not found or error.
+     */
+    RE::Actor* GetActorPtrByModAndFormIDString(const std::string& modName, const std::string& formIDStr) {
+        uint32_t formID = 0;
+        try {
+            std::string cleaned = formIDStr;
+            if (cleaned.rfind("0x", 0) == 0 || cleaned.rfind("0X", 0) == 0) {
+                cleaned = cleaned.substr(2);
+            }
+            formID = static_cast<uint32_t>(std::stoul(cleaned, nullptr, 16));
+        } catch (...) {
+            return nullptr;
+        }
+
+        auto dataHandler = RE::TESDataHandler::GetSingleton();
+        if (!dataHandler) {
+            return nullptr;
+        }
+
+        auto* modFile = dataHandler->LookupModByName(modName);
+        if (!modFile) {
+            return nullptr;
+        }
+
+        uint8_t modIndex = modFile->GetPartialIndex();
+        if (modIndex == 0xFF) {
+            return nullptr;
+        }
+        uint32_t actualFormID = (modIndex << 24) | (formID & 0x00FFFFFF);
+
+        auto* form = RE::TESForm::LookupByID(actualFormID);
+        if (!form) {
+            return nullptr;
+        }
+
+        return form->As<RE::Actor>();
+    }
+
 }  // namespace plugin::LookupHelpers

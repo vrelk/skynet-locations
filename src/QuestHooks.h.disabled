@@ -1,0 +1,26 @@
+#pragma once
+
+#include "RE/Skyrim.h"
+
+namespace plugin {
+
+    class EventProcessor : public RE::BSTEventSink<RE::TESQuestStageEvent>, public RE::BSTEventSink<RE::ObjectiveState::Event> {
+        public:
+            EventProcessor(const EventProcessor&) = delete;
+            EventProcessor(EventProcessor&&) = delete;
+            EventProcessor& operator=(const EventProcessor&) = delete;
+            EventProcessor& operator=(EventProcessor&&) = delete;
+
+            static EventProcessor& GetSingleton();
+            std::string getObjectiveStateString(RE::QUEST_OBJECTIVE_STATE state);
+            RE::BSEventNotifyControl ProcessEvent(const RE::TESQuestStageEvent* event,
+                                                  RE::BSTEventSource<RE::TESQuestStageEvent>* source) override;
+
+            RE::BSEventNotifyControl ProcessEvent(const RE::ObjectiveState::Event* event,
+                                                  RE::BSTEventSource<RE::ObjectiveState::Event>* source) override;
+
+        protected:
+            EventProcessor() = default;
+            ~EventProcessor() = default;
+    };
+}  // namespace plugin
