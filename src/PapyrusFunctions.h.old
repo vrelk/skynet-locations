@@ -21,4 +21,6 @@ namespace plugin::PapyrusFunctions {
 
     RE::BSFixedString GetActorBirthday(RE::StaticFunctionTag*, RE::Actor* actor, bool thirdPerson = false);
     RE::BSFixedString GetSlaveInfo(RE::StaticFunctionTag*, RE::Actor* actor);
+
+    RE::BSFixedString GetActorTattoosJson(RE::StaticFunctionTag*, RE::Actor* actor, std::string area = "");
 }  // namespace plugin::PapyrusFunctions

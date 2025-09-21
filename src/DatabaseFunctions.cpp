@@ -2,11 +2,12 @@
 #include <SQLiteCpp/VariadicBind.h>
 #include <filesystem>
 #include "DatabaseFunctions.h"
-#include <future>  // Required for async operations
-#include "JSON.hpp"
-#include "DataTypes.h"
+#include <future>             // Required for async operations
+#include <nlohmann/JSON.hpp>  // nlohmann::json
+#include "DataTypes.hpp"
 #include "LookupHelpers.h"
 #include <format>
+#include "SlaveTats.hpp"
 
 /*
 {
@@ -277,23 +278,44 @@ namespace plugin::DatabaseFunctions {
 
             db.exec(R"(
                 CREATE TABLE IF NOT EXISTS custom_slaves (
-                    mod_name    TEXT        NOT NULL,
-                    actor_id    TEXT (8)    NOT NULL
+                    mod_name     TEXT        NOT NULL,
+                    actor_id     TEXT (8)    NOT NULL
                                             CHECK (actor_id LIKE '0x%' AND
-                                                LENGTH(actor_id) BETWEEN 3 AND 10),
-                    actor_name  TEXT        NOT NULL,
-                    slave_id    INTEGER,
-                    is_slave    INTEGER (1) CHECK (is_slave IN (0, 1) ) 
+                                                    LENGTH(actor_id) BETWEEN 3 AND 10),
+                    actor_name   TEXT        NOT NULL,
+                    slave_id     INTEGER,
+                    slave_status INTEGER (1) CHECK (slave_status IN (0, 1, 2) ) 
                                             NOT NULL
                                             DEFAULT (0),
-                    collar_text TEXT        DEFAULT ('Property Of {{owner.name}}'),
-                    owner_mod   TEXT        DEFAULT ('Skyrim.esm'),
-                    owner_id    TEXT (8)    DEFAULT ('0x14') 
+                    collar_text  TEXT        DEFAULT ('Property Of {{owner.name}}'),
+                    owner_mod    TEXT        DEFAULT ('Skyrim.esm'),
+                    owner_id     TEXT (8)    DEFAULT ('0x14') 
                                             CHECK (owner_id LIKE '0x%' AND
-                                                LENGTH(owner_id) BETWEEN 3 AND 10),
+                                                    LENGTH(owner_id) BETWEEN 3 AND 10),
                     PRIMARY KEY (
                         mod_name COLLATE NOCASE,
                         actor_id COLLATE NOCASE
+                    )
+                );
+            )");
+
+            db.exec(R"(
+                CREATE TABLE IF NOT EXISTS slavetats_tattoos (
+                    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                    section TEXT    NOT NULL
+                                    COLLATE NOCASE,
+                    name    TEXT    NOT NULL
+                                    COLLATE NOCASE,
+                    area    TEXT    NOT NULL
+                                    COLLATE NOCASE,
+                    texture TEXT    NOT NULL
+                                    COLLATE NOCASE,
+                    tags    TEXT    COLLATE NOCASE,
+                    UNIQUE (
+                        section COLLATE NOCASE,
+                        name COLLATE NOCASE,
+                        area COLLATE NOCASE,
+                        texture COLLATE NOCASE
                     )
                 );
             )");
@@ -993,7 +1015,7 @@ namespace plugin::DatabaseFunctions {
             SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READONLY);
 
             SQLite::Statement query(db, R"(
-                SELECT mod_name, actor_id, actor_name, slave_id, is_slave, collar_text, owner_mod, owner_id
+                SELECT mod_name, actor_id, actor_name, slave_id, slave_status, collar_text, owner_mod, owner_id
                 FROM custom_slaves
                 WHERE mod_name = ? AND actor_id = ?
                 LIMIT 1;
@@ -1007,7 +1029,8 @@ namespace plugin::DatabaseFunctions {
                 result["actor_id"] = query.getColumn(1).isNull() ? "" : query.getColumn(1).getString();
                 result["actor_name"] = query.getColumn(2).isNull() ? "" : query.getColumn(2).getString();
                 result["slave_id"] = query.getColumn(3).isNull() ? 0 : query.getColumn(3).getInt();
-                result["is_slave"] = query.getColumn(4).isNull() ? 0 : query.getColumn(4).getInt();
+                result["slave_status"] =
+                    query.getColumn(4).isNull() ? 0 : query.getColumn(4).getInt();  // 0 = free, 1 = owned, 2 = ex-slave
                 result["collar_text"] = query.getColumn(5).isNull() ? "" : query.getColumn(5).getString();
                 result["owner_mod"] = query.getColumn(6).isNull() ? "" : query.getColumn(6).getString();
                 result["owner_id"] = query.getColumn(7).isNull() ? "" : query.getColumn(7).getString();
@@ -1020,6 +1043,36 @@ namespace plugin::DatabaseFunctions {
             logger::error("Failed to query custom_slaves for actor_id {}: {}", actor_id, e.what());
             return nlohmann::json{};
         }
+    }
+
+    // MARK: - StoreAllTattoos
+    std::future<void> StoreAllTattoos() {
+        return std::async(std::launch::async, []() {
+            try {
+                auto tattoos = plugin::SlaveTats::GetAllTattoos();
+                SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READWRITE);
+
+                SQLite::Statement query(db, R"(
+                    INSERT INTO slavetats_tattoos (section, name, area, texture, tags)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(section, name, area, texture) DO NOTHING
+                )");
+
+                for (const auto& tat: tattoos) {
+                    query.bind(1, tat.section);
+                    query.bind(2, tat.name);
+                    query.bind(3, tat.area);
+                    query.bind(4, tat.texture);
+                    query.bind(5, "");  // tags left empty for user to set later
+                    query.exec();
+                    query.reset();
+                }
+
+                logger::info("Stored {} tattoos in slavetats_tattoos table.", tattoos.size());
+            } catch (const std::exception& e) {
+                logger::error("Failed to store all tattoos: {}", e.what());
+            }
+        });
     }
 
 }  // namespace plugin::DatabaseFunctions

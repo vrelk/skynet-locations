@@ -1,7 +1,7 @@
 #include "ConsoleCommands.h"
 #include "DatabaseFunctions.h"
 #include "VrelkUtil.h"
-#include "DataTypes.h"
+#include "DataTypes.hpp"
 
 namespace plugin::ConsoleCommands {
     using CommandInfo = plugin::DataTypes::CommandInfo;

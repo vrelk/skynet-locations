@@ -4,7 +4,7 @@
 #include "../VrelkUtil.h"
 #include "../SkyrimHelpers.h"
 #include "../DatabaseFunctions.h"
-#include "../DataTypes.h"
+#include "../DataTypes.hpp"
 
 #include "BirthdayAPI.hpp"
 #include "LocationAPI.hpp"

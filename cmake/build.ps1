@@ -1,4 +1,4 @@
-param([string]$buildPreset="release", [string]$configPreset="default", [string]$packConfig, [string]$packPreset, [string]$toolset)
+param([string]$buildPreset = "release", [string]$configPreset = "default", [string]$packConfig, [string]$packPreset, [string]$toolset)
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version 3.0
 
@@ -7,11 +7,11 @@ Write-Warning "Using buildPreset='$buildPreset' and configPreset='$configPreset'
 $projectRoot = Resolve-Path "$PSScriptRoot/.."
 
 if (!$packPreset -and !$packConfig) {
-    $packConfig=$buildPreset
+    $packConfig = $buildPreset
 }
-$toolsetParam=""
+$toolsetParam = ""
 if ($toolset) {
-    $toolsetParam="-T $toolset"
+    $toolsetParam = "-T $toolset"
 }
 
 Set-Location $projectRoot
@@ -26,9 +26,22 @@ Set-Location "$projectRoot/build"
 if ($packPreset) {
     Write-Warning "Starting cpack with preset '$($packPreset)'"
     cpack --preset "$($packPreset)"
-} elseif ($packConfig) {
+}
+elseif ($packConfig) {
     Write-Warning "Starting cpack with config '$($packConfig)'"
     cpack -C "$($packConfig)"
 }
 
 Set-Location $projectRoot
+
+
+Write-Warning "Compiling Papyrus scripts"
+
+# Get Skyrim SE install path from registry
+$skyrimPath = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Wow6432Node\Bethesda Softworks\Skyrim Special Edition' -Name 'Installed Path'
+
+$papyrusCompilerPath = "$projectRoot/cmake/papyrus-compiler"
+$scriptSourcePath = "$projectRoot/dist/Data/Scripts/Source"
+$scriptOutputPath = "$projectRoot/dist/Data/Scripts"
+# Compile the scripts
+& "$papyrusCompilerPath/PapyrusCompiler.exe" "$scriptSourcePath" -o="$scriptOutputPath" -all -i="$scriptSourcePath;$skyrimPath\Data\Source\Scripts" -optimize -f="$papyrusCompilerPath/TESV_Papyrus_Flags.flg"

@@ -11,6 +11,7 @@
         "commonlibsse-ng",
         "spdlog",
         "boost-algorithm",
+        "nlohmann-json",
         {
           "name": "cpr",
           "default-features": false,

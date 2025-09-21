@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include "DataTypes.h"
+#include "DataTypes.hpp"
 
 namespace plugin::DatabaseFunctions {
     extern const std::string DATABASE_PATH;
@@ -28,4 +28,5 @@ namespace plugin::DatabaseFunctions {
     static std::string GetOrdinalSuffix(int number);
     std::string GetActorBirthdayString(const std::string& mod_name, const std::string& actor_id, bool thirdPerson = false);
     nlohmann::json GetCustomSlaveEntry(const std::string& mod_name, const std::string& actor_id);
+    std::future<void> StoreAllTattoos();
 }  // namespace plugin::DatabaseFunctions

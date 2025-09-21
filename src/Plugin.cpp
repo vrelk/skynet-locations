@@ -7,12 +7,10 @@ using namespace SKSE::stl;
 
 //#include "src/Settings.hpp"
 //#include "src/Scripting.hpp"
-#include "../include/jc_interface.h"
-#include "jcontainers.hpp"
 #include "DatabaseFunctions.h"
 #include "HTTPClient.h"
 #include "VrelkUtil.h"
-#include "PapyrusFunctions.h"
+#include "PapyrusFunctions.hpp"
 #include "REST/HTTPServer.hpp"
 
 namespace plugin {
@@ -61,31 +59,6 @@ namespace plugin {
     }
 }  // namespace plugin
 
-std::string getJContainersPluginName() {
-    auto patchVersion = REL::Module::get().version().patch();
-
-    std::string pluginName{"JContainers64"};
-    if (REL::Module::IsVR()) {
-        pluginName = "JContainersVR";
-    } else if (patchVersion == 659 || patchVersion == 1179) {
-        pluginName = "JContainersGOG";
-    }
-
-    return pluginName;
-}
-
-void loadJContainers() {
-    std::string pluginName = getJContainersPluginName();
-
-    SKSE::GetMessagingInterface()->RegisterListener(pluginName.c_str(), [](SKSE::MessagingInterface::Message* a_msg) {
-        if (a_msg && a_msg->type == jc::message_root_interface) {
-            const jc::root_interface* root = jc::root_interface::from_void(a_msg->data);
-            if (root)
-                jcontainers::JCWrapper::GetSingleton()->PreInit(root);
-        }
-    });
-}
-
 using namespace plugin;
 
 extern "C" DLLEXPORT bool SKSEPlugin_Load(const LoadInterface* skse) {
@@ -99,8 +72,6 @@ extern "C" DLLEXPORT bool SKSEPlugin_Load(const LoadInterface* skse) {
     if (!papyrus) {
         return false;
     }
-
-    loadJContainers();
 
     // Start HTTP server in a separate thread.
     std::thread([]() { plugin::REST::HTTPServer::startServer(); }).detach();

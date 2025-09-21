@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../include/jc_interface.h"
+#include "JContainers/jc_interface.h"
 
 namespace {
     template <class F>

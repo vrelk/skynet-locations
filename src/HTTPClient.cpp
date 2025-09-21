@@ -1,8 +1,8 @@
 #include "HTTPClient.h"
 #include <cpr/cpr.h>
 #include <thread>
-#include <chrono>           // For measuring time
-#include "jcontainers.hpp"  // Include JContainers
+#include <chrono>                      // For measuring time
+#include "../include/jcontainers.hpp"  // Include JContainers
 
 namespace plugin {
     int32_t PapyrusHttpGet(RE::StaticFunctionTag*, const std::string url) {

@@ -1,6 +1,6 @@
 #include <VrelkUtil.h>
-#include <JSON.hpp>         // Ensure you have the nlohmann/json library included
-#include <jcontainers.hpp>  // Ensure you have JContainers included
+#include <nlohmann/JSON.hpp>  // Ensure you have the nlohmann/json library included
+#include <jcontainers.hpp>    // Ensure you have JContainers included
 
 namespace plugin::VrelkUtil {
 
@@ -268,4 +268,4 @@ namespace plugin::VrelkUtil {
         }
     }
 
-}  // namespace plugin
+}  // namespace plugin::VrelkUtil

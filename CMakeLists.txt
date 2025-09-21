@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
         VrelkHttpClient
-        VERSION 0.0.4
+        VERSION 0.0.5
         LANGUAGES CXX)
 set(PROJECT_LICENSE "MIT")
 set(PROJECT_FRIENDLY_NAME ${PROJECT_NAME})
