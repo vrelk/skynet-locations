@@ -20,7 +20,8 @@
           ]
         },
         "sqlitecpp",
-        "crow"
+        "crow",
+        "inja"
       ]
     }
   },

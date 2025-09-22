@@ -6,6 +6,7 @@
 #include <nlohmann/JSON.hpp>  // nlohmann::json
 #include "DataTypes.hpp"
 #include "SlaveTats.hpp"
+#include <inja/inja.hpp>
 
 namespace plugin::PapyrusFunctions {
 
@@ -162,6 +163,7 @@ namespace plugin::PapyrusFunctions {
                 };*/
 
             if (slaveInfo.contains("collar_text")) {
+                /*
                 std::string collarText = slaveInfo["collar_text"];
                 size_t pos = collarText.find("{{owner.name}}");
                 if (pos != std::string::npos) {
@@ -173,6 +175,9 @@ namespace plugin::PapyrusFunctions {
                     }
                 }
                 slaveInfo["collar_text"] = collarText;
+                */
+
+                slaveInfo["collar_text"] = inja::render(slaveInfo["collar_text"], slaveInfo);
             }
 
             return RE::BSFixedString(slaveInfo.dump().c_str());

@@ -34,4 +34,5 @@ namespace plugin::LookupHelpers {
     float GetGlobalValueByName(const std::string& globalName);
     int GetGlobalIntValueByName(const std::string& globalName);
     RE::Actor* GetActorPtrByModAndFormIDString(const std::string& modName, const std::string& formIDStr);
+    int GetSex(RE::Actor* actor);
 }  // namespace plugin::LookupHelpers

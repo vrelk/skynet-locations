@@ -294,4 +294,30 @@ namespace plugin::LookupHelpers {
         return form->As<RE::Actor>();
     }
 
+    /*
+     * @brief Determines if the given actor is (-1 = error, 0 = male, 1 = female)
+    */
+    int GetSex(RE::Actor* actor) {
+        if (!actor) {
+            return -1;  // or handle error as appropriate
+        }
+
+        auto* actorBase = actor->GetActorBase();
+        if (!actorBase) {
+            return -1;  // or handle error as appropriate
+        }
+        return actorBase->GetSex();
+    }
+
+    std::string GetActorAdj(RE::Actor* actor) {
+        switch (GetSex(actor)) {
+            case 0:
+                return "his";
+            case 1:
+                return "her";
+            default:
+                return "their";
+        }
+    }
+
 }  // namespace plugin::LookupHelpers
