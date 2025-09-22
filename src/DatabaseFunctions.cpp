@@ -1075,4 +1075,31 @@ namespace plugin::DatabaseFunctions {
         });
     }
 
+    std::string GetTattooDesc(const std::string& section, const std::string& name, const std::string& area, const std::string& texture) {
+        try {
+            SQLite::Database db(DATABASE_PATH, SQLite::OPEN_READONLY);
+
+            SQLite::Statement query(db, R"(
+                SELECT description
+                FROM slavetats_tattoos
+                WHERE section = ? AND name = ? AND area = ? AND texture = ?
+                LIMIT 1;
+            )");
+            query.bind(1, section);
+            query.bind(2, name);
+            query.bind(3, area);
+            query.bind(4, texture);
+
+            if (query.executeStep()) {
+                return query.getColumn(0).isNull() ? "" : query.getColumn(0).getString();
+            } else {
+                //logger::warn("No tattoo description found for: {} | {} | {} | {}", section, name, area, texture);
+                return "";
+            }
+        } catch (const std::exception& e) {
+            logger::error("Failed to query tattoo description for {} | {} | {} | {}: {}", section, name, area, texture, e.what());
+            return "";
+        }
+    }
+
 }  // namespace plugin::DatabaseFunctions

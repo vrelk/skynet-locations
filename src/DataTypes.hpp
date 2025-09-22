@@ -152,15 +152,18 @@ namespace plugin::DataTypes {
             std::string section;  // Usually the pack name
             int slot;
             std::string texture;
+            std::string description;
 
             std::string ToJSON() const {
-                nlohmann::json j = {{"area", area}, {"name", name}, {"section", section}, {"slot", slot}, {"texture", texture}};
+                nlohmann::json j = {{"area", area}, {"name", name},       {"section", section},
+                                    {"slot", slot}, {"texture", texture}, {"description", description}};
                 return j.dump();
             }
     };
     // nlohmann::json support
     inline void to_json(nlohmann::json& j, const SlaveTatsAppliedTat& v) {
-        j = nlohmann::json{{"area", v.area}, {"name", v.name}, {"section", v.section}, {"slot", v.slot}, {"texture", v.texture}};
+        j = nlohmann::json{{"area", v.area}, {"name", v.name},       {"section", v.section},
+                           {"slot", v.slot}, {"texture", v.texture}, {"description", v.description}};
     }
 
 }  // namespace plugin::DataTypes

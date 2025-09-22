@@ -6,6 +6,9 @@
 #include "../include/jcontainers.hpp"
 #include "../include/SlaveTatsNG_Interface.h"
 #include "DataTypes.hpp"
+#include "DatabaseFunctions.h"
+#include <inja/inja.hpp>
+#include "LookupHelpers.h"
 
 namespace plugin::SlaveTats {
     inline const SlaveTatsNG::Addresses* iface = nullptr;
@@ -131,10 +134,15 @@ namespace plugin::SlaveTats {
 
                 DataTypes::SlaveTatsAppliedTat tat;
                 tat.area = JMap::getStr(tatMap, "area");
+                std::transform(tat.area.begin(), tat.area.end(), tat.area.begin(), ::tolower);
                 tat.name = JMap::getStr(tatMap, "name");
                 tat.section = JMap::getStr(tatMap, "section");
                 tat.slot = JMap::getInt(tatMap, "slot");
                 tat.texture = JMap::getStr(tatMap, "texture");
+                tat.description = DatabaseFunctions::GetTattooDesc(tat.section, tat.name, tat.area, tat.texture);
+
+                tat.description = inja::render(tat.description, {{"actor_adj", LookupHelpers::GetActorAdj(actor)}});
+
                 tattoos.push_back(tat);
             }
 

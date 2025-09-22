@@ -55,8 +55,8 @@ namespace plugin::PapyrusFunctions {
         }
     }
 
-    inline void InsertCellPlaceholder(RE::StaticFunctionTag*, const std::string mod_name, int form_id, std::string name,
-                                      std::string notes) {
+    inline void InsertCellPlaceholder(RE::StaticFunctionTag*, const std::string mod_name, int form_id, const std::string name = "",
+                                      const std::string notes = "") {
         std::string form_id_str = VrelkUtil::IntToString(form_id);
         plugin::DatabaseFunctions::AddPlaceholderCell(mod_name, form_id_str, name, notes);
         std::string message = std::format("Inserted placeholder cell: mod_name = {}, form_id = {}", mod_name, form_id_str);
@@ -64,36 +64,36 @@ namespace plugin::PapyrusFunctions {
     }
 
     inline void InsertLocationPlaceholder(RE::StaticFunctionTag*, const std::string mod_name, const std::string editor_id,
-                                          std::string name) {
+                                          const std::string name = "") {
         plugin::DatabaseFunctions::AddPlaceholderLocation(mod_name, editor_id, name);
         std::string message = std::format("Inserted placeholder location: mod_name = {}, editor_id = {}", mod_name, editor_id);
         RE::ConsoleLog::GetSingleton()->Print(message.c_str());
     }
 
     inline void InsertWorldspacePlaceholder(RE::StaticFunctionTag*, const std::string mod_name, const std::string editor_id,
-                                            std::string name) {
+                                            const std::string name = "") {
         plugin::DatabaseFunctions::AddPlaceholderWorldspace(mod_name, editor_id, name);
         std::string message = std::format("Inserted placeholder worldspace: mod_name = {}, editor_id = {}", mod_name, editor_id);
         RE::ConsoleLog::GetSingleton()->Print(message.c_str());
     }
 
-    inline RE::BSFixedString GetQuestDescription(RE::StaticFunctionTag*, std::string quest_eid) {
+    inline RE::BSFixedString GetQuestDescription(RE::StaticFunctionTag*, const std::string quest_eid) {
         return plugin::DatabaseFunctions::GetQuestDescription(quest_eid);
     }
 
-    inline RE::BSFixedString GetStageDescription(RE::StaticFunctionTag*, std::string quest_eid, int stage) {
+    inline RE::BSFixedString GetStageDescription(RE::StaticFunctionTag*, const std::string quest_eid, int stage) {
         return plugin::DatabaseFunctions::GetStageDescription(quest_eid, stage);
     }
 
-    inline RE::BSFixedString GetObjectiveDescription(RE::StaticFunctionTag*, std::string quest_eid, int objective) {
+    inline RE::BSFixedString GetObjectiveDescription(RE::StaticFunctionTag*, const std::string quest_eid, int objective) {
         return plugin::DatabaseFunctions::GetObjectiveDescription(quest_eid, objective);
     }
 
-    inline RE::BSFixedString GetSceneDescription(RE::StaticFunctionTag*, std::string scene_eid, int phase, bool exactMatch) {
+    inline RE::BSFixedString GetSceneDescription(RE::StaticFunctionTag*, const std::string scene_eid, int phase, bool exactMatch = false) {
         return plugin::DatabaseFunctions::GetSceneDescription(scene_eid, phase, exactMatch);
     }
 
-    inline RE::BSFixedString GetActorBirthday(RE::StaticFunctionTag*, RE::Actor* actor, bool thirdPerson) {
+    inline RE::BSFixedString GetActorBirthday(RE::StaticFunctionTag*, RE::Actor* actor, bool thirdPerson = false) {
         try {
             if (!actor) {
                 return RE::BSFixedString("{\"dob\":\"\",\"age\":\"\",\"birthday_str\":\"\"}");
@@ -156,10 +156,10 @@ namespace plugin::PapyrusFunctions {
             slaveInfo["actor_name"] = SkyrimHelpers::GetActorDisplayName(actor, "Slave");
 
             /*slaveInfo["slave_status_str"] = switch(slaveInfo.value("slave_status", 0)) {
-                    case 0: yield "Free";
-                    case 1: yield "Owned";
-                    case 2: yield "Ex-Slave";
-                    default: yield "Unknown";
+                    case 0: yield "free";
+                    case 1: yield "owned";
+                    case 2: yield "ex-slave";
+                    default: yield "unknown";
                 };*/
 
             if (slaveInfo.contains("collar_text")) {
@@ -177,17 +177,36 @@ namespace plugin::PapyrusFunctions {
                 slaveInfo["collar_text"] = collarText;
                 */
 
-                slaveInfo["collar_text"] = inja::render(slaveInfo["collar_text"], slaveInfo);
+                slaveInfo["collar_text"] =
+                    inja::render(slaveInfo["collar_text"], {{"actor_name", slaveInfo["actor_name"] ? slaveInfo["actor_name"] : "Slave"},
+                                                            {"owner_name", slaveInfo["owner_name"] ? slaveInfo["owner_name"] : "Mistress"},
+                                                            {"id", slaveInfo.contains("slave_id") ? slaveInfo["slave_id"].get<int>() : 0}});
             }
 
-            return RE::BSFixedString(slaveInfo.dump().c_str());
+            nlohmann::json outputObj;
+            outputObj["slave_name"] = (slaveInfo.contains("actor_name") && !slaveInfo["actor_name"].is_null())
+                                          ? slaveInfo["actor_name"].get<std::string>()
+                                          : "Slave";
+            outputObj["owner_name"] = (slaveInfo.contains("owner_name") && !slaveInfo["owner_name"].is_null())
+                                          ? slaveInfo["owner_name"].get<std::string>()
+                                          : "Master";
+            outputObj["status"] = (slaveInfo.contains("slave_status_str") && !slaveInfo["slave_status_str"].is_null())
+                                      ? slaveInfo["slave_status_str"].get<std::string>()
+                                      : "unknown";
+
+            outputObj["collar_text"] = (slaveInfo.contains("collar_text") && !slaveInfo["collar_text"].is_null())
+                                           ? slaveInfo["collar_text"].get<std::string>()
+                                           : "";
+            outputObj["id"] = slaveInfo.contains("slave_id") ? slaveInfo["slave_id"].get<int>() : 0;
+
+            return RE::BSFixedString(outputObj.dump().c_str());
         } catch (const std::exception& e) {
             logger::error("Exception in GetSlaveInfo: {}", e.what());
             return RE::BSFixedString("{}");
         }
     }
 
-    inline RE::BSFixedString GetActorTattoosJson(RE::StaticFunctionTag*, RE::Actor* actor, std::string area = "") {
+    inline RE::BSFixedString GetActorTattoosJson(RE::StaticFunctionTag*, RE::Actor* actor, const std::string area = "") {
         try {
             if (!actor) {
                 return RE::BSFixedString("[]");

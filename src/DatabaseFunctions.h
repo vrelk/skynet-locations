@@ -29,4 +29,5 @@ namespace plugin::DatabaseFunctions {
     std::string GetActorBirthdayString(const std::string& mod_name, const std::string& actor_id, bool thirdPerson = false);
     nlohmann::json GetCustomSlaveEntry(const std::string& mod_name, const std::string& actor_id);
     std::future<void> StoreAllTattoos();
+    std::string GetTattooDesc(const std::string& section, const std::string& name, const std::string& area, const std::string& texture);
 }  // namespace plugin::DatabaseFunctions
